@@ -1,0 +1,16 @@
+node_modules/
+.next/
+out/
+
+# Secrets. Share .env.local privately with the group, never through GitHub.
+.env
+.env.local
+.env.*.local
+
+# Uploaded and processed images (bind-mounted into the ImageMagick container).
+storage/*
+!storage/.gitkeep
+
+npm-debug.log*
+.DS_Store
+Thumbs.db
