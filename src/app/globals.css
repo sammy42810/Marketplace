@@ -1,0 +1,91 @@
+/* Base values until the group's design tokens land; build new styles on these. */
+:root {
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 24px;
+  --space-6: 32px;
+
+  --radius: 6px;
+
+  --text: #1c1c1c;
+  --text-muted: #5f5f5a;
+  --bg: #f7f7f5;
+  --surface: #fff;
+  --line: #e2e2de;
+  --accent: #1d4ed8;
+  --good: #166534;
+  --good-bg: #f0fdf4;
+  --bad: #991b1b;
+  --bad-bg: #fef2f2;
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  font-family: system-ui, -apple-system, 'Segoe UI', sans-serif;
+  line-height: 1.5;
+  color: var(--text);
+  background: var(--bg);
+}
+
+h1 {
+  margin: 0 0 var(--space-4);
+  font-size: 28px;
+  line-height: 1.2;
+}
+
+h2 {
+  margin: var(--space-6) 0 var(--space-3);
+  font-size: 20px;
+}
+
+a {
+  color: var(--accent);
+}
+
+button {
+  font: inherit;
+  cursor: pointer;
+}
+
+.site-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-4);
+  padding: var(--space-3) var(--space-5);
+  background: var(--surface);
+  border-bottom: 1px solid var(--line);
+}
+
+.site-header nav {
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+}
+
+.brand {
+  font-weight: 700;
+  color: inherit;
+  text-decoration: none;
+}
+
+.site-main {
+  max-width: 960px;
+  margin: 0 auto;
+  padding: var(--space-6) var(--space-5);
+}
+
+@media (max-width: 560px) {
+  .site-header,
+  .site-main {
+    padding-inline: var(--space-4);
+  }
+}
