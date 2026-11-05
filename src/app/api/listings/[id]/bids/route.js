@@ -1,6 +1,6 @@
 import { ObjectId } from "mongodb";
 import { HttpError, withUser } from "@/lib/server/auth";
-import { getDb } from "@/lib/server/mongo";
+import { getDb, getMongoClient } from "@/lib/server/mongo";
 
 export const runtime = "nodejs";
 
@@ -98,57 +98,79 @@ export const POST = withUser(async (request, context, user) => {
 
   const listingId = new ObjectId(id);
   const db = await getDb();
+  const client = await getMongoClient();
   const listings = db.collection("listings");
   const now = new Date();
 
-  // atomically accept the bid only if the auction AND amount are valid 
-  const previousListing = await listings.findOneAndUpdate(
-    {
-      _id: listingId,
-      saleType: "auction",
-      status: "active",
-      endsAt: { $gt: now },
-      $or: [{ startsAt: null }, { startsAt: { $lte: now } }],
-      sellerId: { $ne: user._id },
-      price: { $type: "number" },
-      minIncrement: { $type: "number", $gt: 0 },
-      $expr: {
-        $gte: [
-          amount,
-          {
-            $round: [
-              {
-                $add: [{ $ifNull: ["$currentBid", "$price"] }, "$minIncrement"],
-              },
-              2,
-            ],
-          },
-        ],
-      },
-    },
-    {
-      $set: {
-        currentBid: amount,
-        currentBidder: user._id,
-        updatedAt: now,
-      },
-    },
-    { returnDocument: "before" },
-  );
+  const session = client.startSession();
+  let transactionResult;
 
-  if (!previousListing) {
+  try {
+    // update the highest bid and save the bid together in a transaction
+    transactionResult = await session.withTransaction(
+      async () => {
+        const previousListing = await listings.findOneAndUpdate(
+          {
+            _id: listingId,
+            saleType: "auction",
+            status: "active",
+            endsAt: { $gt: now },
+            $or: [{ startsAt: null }, { startsAt: { $lte: now } }],
+            sellerId: { $ne: user._id },
+            price: { $type: "number" },
+            minIncrement: { $type: "number", $gt: 0 },
+            $expr: {
+              $gte: [
+                amount,
+                {
+                  $round: [
+                    {
+                      $add: [
+                        { $ifNull: ["$currentBid", "$price"] },
+                        "$minIncrement",
+                      ],
+                    },
+                    2,
+                  ],
+                },
+              ],
+            },
+          },
+          {
+            $set: {
+              currentBid: amount,
+              currentBidder: user._id,
+              updatedAt: now,
+            },
+          },
+          { returnDocument: "before", session },
+        );
+
+        if (!previousListing) return null;
+
+        // save the accepted bid in the same transaction
+        const bid = {
+          listingId,
+          bidderId: user._id,
+          amount,
+          createdAt: now,
+        };
+
+        const res = await db.collection("bids").insertOne(bid, { session });
+
+        return { previousListing, res };
+      },
+      { writeConcern: { w: "majority" } },
+    );
+  } finally {
+    await session.endSession();
+  }
+
+  if (!transactionResult) {
     await notifyRejectedBid(listings, listingId, user._id, amount, now);
   }
 
-  // save the accepted bid to the collection
-  const bid = {
-    listingId,
-    bidderId: user._id,
-    amount,
-    createdAt: now,
-  };
-
-  const res = await db.collection("bids").insertOne(bid);
+  const { previousListing, res } = transactionResult;
 
   const io = globalThis.marketplaceIo;
 

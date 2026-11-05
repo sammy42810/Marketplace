@@ -3,16 +3,44 @@ name: marketplace
 services:
   mongo:
     image: mongo:8.0
+    # Run MongoDB as a single node replica set so we can use transactions
+    # to update the highest bid and save the bid together.
+    command: ["mongod", "--replSet", "rs0", "--bind_ip_all"]
     # Host port 27018, so it does not clash with a MongoDB already installed on 27017.
     ports:
       - "127.0.0.1:27018:27017"
     volumes:
       - mongo-data:/data/db
     healthcheck:
-      test: ["CMD", "mongosh", "--quiet", "--eval", "db.adminCommand('ping').ok"]
+      test:
+        ["CMD", "mongosh", "--quiet", "--eval", "db.adminCommand('ping').ok"]
       interval: 10s
       timeout: 5s
       retries: 10
+
+  mongo-init:
+    image: mongo:8.0
+    depends_on:
+      mongo:
+        condition: service_healthy
+    restart: "no"
+    entrypoint: ["mongosh", "--host", "mongo:27017", "--quiet", "--eval"]
+    command:
+      - |
+        // Initialize the replica set if it hasn't been initialized yet.
+        try {
+          rs.status();
+          print("MongoDB replica set already initialized.");
+        } catch (error) {
+          if (error.codeName !== "NotYetInitialized") throw error;
+
+          rs.initiate({
+            _id: "rs0",
+            members: [{_id: 0, host: "mongo:27017"}]
+          });
+
+          print("MongoDB replica set initialized.");
+        }
 
   elasticsearch:
     image: docker.elastic.co/elasticsearch/elasticsearch:9.5.5
@@ -30,7 +58,11 @@ services:
         soft: -1
         hard: -1
     healthcheck:
-      test: ["CMD-SHELL", "curl -fs http://localhost:9200/_cluster/health || exit 1"]
+      test:
+        [
+          "CMD-SHELL",
+          "curl -fs http://localhost:9200/_cluster/health || exit 1",
+        ]
       interval: 10s
       timeout: 5s
       retries: 30
