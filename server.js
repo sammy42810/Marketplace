@@ -17,7 +17,7 @@ await app.prepare();
 
 // Socket.io can't live in Next.js API routes, so both share this server.
 const httpServer = createServer((req, res) => handle(req, res));
-attachSockets(httpServer);
+globalThis.marketplaceIo = attachSockets(httpServer);
 
 httpServer.listen(port, () => {
   console.log(`> Marketplace ready on http://${hostname}:${port} (${dev ? 'development' : 'production'})`);
