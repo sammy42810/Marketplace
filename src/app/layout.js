@@ -1,5 +1,7 @@
 import {AuthProvider} from '@/context/AuthContext';
 import SiteHeader from '@/components/SiteHeader';
+import SiteFooter from '@/components/SiteFooter';
+import '@fontsource-variable/archivo/wdth.css';
 import './globals.css';
 
 export const metadata = {
@@ -14,6 +16,7 @@ export default function RootLayout({children}) {
         <AuthProvider>
           <SiteHeader />
           <main className='site-main'>{children}</main>
+          <SiteFooter />
         </AuthProvider>
       </body>
     </html>
