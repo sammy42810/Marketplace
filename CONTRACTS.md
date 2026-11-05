@@ -178,16 +178,3 @@ Sockets use Firebase authentication. The existing server creates a `user:<fireba
 | notification:new | Server -> User | {notification} | Planned |
 
 Auction rooms are named `auction:<listingId>`.
-
-## 4. Auction Bidding Rules
-
-For KAN-50, placing a bid should:
-
-1. Check that the auction is active and has not ended.
-2. Check that the bidder is not the seller.
-3. Check that the amount meets the required minimum bid.
-4. Atomically update the current highest bid using MongoDB.
-5. Save the bid in the Bids collection.
-6. Notify the auction room and previous highest bidder.
-
-An atomic update prevents two competing bids from both becoming the highest bid. Bid history and notifications should stay consistent with the accepted result.
