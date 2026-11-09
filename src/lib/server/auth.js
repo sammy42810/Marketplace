@@ -28,12 +28,11 @@ export async function requireUser(request, {verified = true} = {}) {
   return findOrCreateUser(token);
 }
 
-// export const POST = withUser(async (request, context, user) => { ... });
-export function withUser(handler, options) {
+// Turns thrown errors into JSON responses, for routes that are open to everyone.
+export function withErrors(handler) {
   return async (request, context) => {
     try {
-      const user = await requireUser(request, options);
-      return await handler(request, context, user);
+      return await handler(request, context);
     } catch (error) {
       if (error instanceof HttpError) return Response.json({error: error.message}, {status: error.status});
       console.error(error);
@@ -42,4 +41,9 @@ export function withUser(handler, options) {
       return Response.json({error: message}, {status: 500});
     }
   };
+}
+
+// export const POST = withUser(async (request, context, user) => { ... });
+export function withUser(handler, options) {
+  return withErrors(async (request, context) => handler(request, context, await requireUser(request, options)));
 }
