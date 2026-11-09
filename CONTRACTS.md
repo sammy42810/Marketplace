@@ -19,7 +19,7 @@
 | emailVerified | Boolean |
 | createdAt, updatedAt | Date |
 
-### Listings (Planned)
+### Listings (Existing)
 
 | Field | Type |
 | --- | --- |
@@ -93,17 +93,27 @@ The following routes are either already implemented or planned for future develo
 | GET | /api/health | No | Service health information |
 | GET | /api/me | Signed in | {user} |
 
-### Listings (Planned)
+### Listings (Existing)
 
 | Method | Route | Auth | Request / Response |
 | --- | --- | --- | --- |
-| GET | /api/listings | No | Query filters -> {listings, page, total} |
+| GET | /api/listings | No | Query filters -> {listings, page, limit, total} |
 | POST | /api/listings | Yes | Listing fields -> {listing} |
-| GET | /api/listings/:id | No | -> {listing} |
+| GET | /api/listings/:id | No | -> {listing}, with `seller: {_id, displayName, photoUrl}` |
 | PATCH | /api/listings/:id | Owner | Updated fields -> {listing} |
 | DELETE | /api/listings/:id | Owner | -> {ok: true} |
 
-DELETE marks the listing as removed.
+DELETE marks the listing as removed, and removed listings return 404.
+
+**Browse filters:** `page`, `limit` (default 24, max 50), `category`, `condition`, `saleType`, `seller` (user `_id`), `minPrice`, `maxPrice`, `sort` (`newest`, `price_asc`, `price_desc`). Only active listings are returned.
+
+**Allowed values:** `category` is electronics, furniture, textbooks, clothing, tickets, sports, home or other. `condition` is new, like-new, good, fair or poor.
+
+**Required on create:** title, description, category, condition, price, saleType, zip. Auctions also need `endsAt` and `minIncrement`; `startsAt` defaults to now, and an auction runs from 1 minute to 30 days. `photos` must be same-site paths. `location` is optional.
+
+**PATCH** can change title, description, category, condition, price, photos, zip and location. Any other field is a 400. Listings that have sold or have bids can't be edited or removed (409).
+
+**Errors** are `{error: message}`: 400 invalid input, 401 not signed in, 403 not the seller or email unverified, 404 not found or malformed ID, 409 locked.
 
 ### Offers and Bids (Planned)
 
