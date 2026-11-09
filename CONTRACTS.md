@@ -1,7 +1,7 @@
 
 # Marketplace API Contracts
 
-**Jira:** KAN-21 (schemas), KAN-30 (API routes)
+**Jira:** KAN-21 (schemas), KAN-30 (API routes), KAN-27 (notification format)
 
 **Status:** Draft
 
@@ -74,11 +74,13 @@ The `location` field uses GeoJSON coordinates `[longitude, latitude]` and a 2dsp
 - comment: String
 - createdAt: Date
 
-**Notifications**
+**Notifications** (format agreed; see [section 4](#4-notifications))
 - _id: ObjectId
-- userId: ObjectId
-- type, message: String
+- userId: ObjectId (recipient)
+- type: String (one of the nine types in section 4)
 - listingId: ObjectId or null
+- actorId: ObjectId or null
+- message: String
 - read: Boolean
 - createdAt: Date
 
@@ -135,6 +137,7 @@ DELETE marks the listing as removed, and removed listings return 404.
 | POST | /api/reviews | Yes | {listingId, revieweeId, rating, comment} -> {review} |
 | GET | /api/notifications | Yes | -> {notifications} |
 | PATCH | /api/notifications/:id | Owner | {read: true} -> {notification} |
+| POST | /api/notifications/read-all | Yes | -> {updated} (count marked read) |
 
 ### Example: Create Listing
 
@@ -175,7 +178,7 @@ Response: HTTP 201
 
 ## 3. Socket.IO Events
 
-Sockets use Firebase authentication. The client sends `{token}` (a Firebase ID token) in the handshake `auth` payload. Connections with a missing or invalid token are rejected with a `connect_error` whose message is `unauthorized`. The existing server creates a `user:<firebaseUid>` room for each connected user.
+Sockets use Firebase authentication. The client sends `{token}` (a Firebase ID token) in the handshake `auth` payload. Connections with a missing or invalid token are rejected with a `connect_error` whose message is `unauthorized` (or `server_error` if the user record can't be loaded). Each connected socket joins a `user:<userId>` room, where `userId` is the user's `users._id` (the same id as `/api/me`'s `user.id`), so every tab the user has open gets their events. Server code sends to it with `emitToUser(userId, event, data)` from `src/lib/server/realtime.js`.
 
 | Event | Direction | Data | Status |
 | --- | --- | --- | --- |
@@ -184,8 +187,85 @@ Sockets use Firebase authentication. The client sends `{token}` (a Firebase ID t
 | auction:join | Client -> Server | {listingId} | Planned |
 | auction:leave | Client -> Server | {listingId} | Planned |
 | auction:bid | Server -> Auction room | {listingId, amount, bidderId} | Planned |
-| outbid | Server -> User | {listingId, amount} | Planned |
 | message:new | Server -> User | {message} | Planned |
-| notification:new | Server -> User | {notification} | Planned |
+| notification:new | Server -> User | {notification}, see section 4 | Proposed; sender in place |
 
-Auction rooms are named `auction:<listingId>`.
+Auction rooms are named `auction:<listingId>`. Being outbid has no event of its own: the bidder gets a `notification:new` of type `outbid`, and the auction room's `auction:bid` carries the live price.
+
+## 4. Notifications
+
+**Status:** Proposed, waiting for roles D and E to sign off (see [Sign-off](#sign-off) at the end of this section).
+
+One format is used for the MongoDB document, `GET /api/notifications`, and the `notification:new` socket event.
+
+### Fields
+
+| Field | Stored as | Sent as | Notes |
+| --- | --- | --- | --- |
+| _id | ObjectId | String | |
+| userId | ObjectId | String | Recipient, a `users._id` |
+| type | String | String | One of the types below |
+| listingId | ObjectId or null | String or null | The listing it is about. Null only for a `new_message` with no listing |
+| actorId | ObjectId or null | String or null | The user who caused it. Null for system events (auction end) |
+| message | String | String | Plain text written by the server, at most 280 characters. Clients show it as text, never as HTML |
+| read | Boolean | Boolean | `false` when created |
+| createdAt | Date | ISO 8601 string | |
+
+User references are `users._id`, never Firebase UIDs, the same as `sellerId`, `buyerId` and `bidderId`. Clients link to the listing from `listingId`, and look up the actor's name through the user APIs if they need more than the message.
+
+### Types
+
+| Type | Sent to | actorId | When |
+| --- | --- | --- | --- |
+| offer_received | Seller | Buyer | A buyer makes an offer |
+| offer_accepted | Buyer | Seller | The seller accepts the offer |
+| offer_declined | Buyer | Seller | The seller declines the offer (offer status `rejected`) |
+| outbid | Previous high bidder | New high bidder | Someone places a higher bid |
+| auction_won | Winning bidder | null | An auction ends with bids |
+| auction_ended | Seller | null | An auction ends, with or without bids |
+| price_drop | Everyone watching the listing (KAN-37) | Seller | The seller lowers the price |
+| listing_sold | Other buyers with a pending offer | null | The listing sells to someone else |
+| new_message | Message recipient | Sender | A chat message arrives |
+
+Example messages: `Alex offered $80 on "Used bicycle"`, `You were outbid on "Desk lamp": the bid is now $25`, `"Desk lamp" sold for $30`.
+
+### Rules
+
+1. **Save, then emit.** The server inserts the document into MongoDB first, then emits `notification:new` with `{notification}` to `user:<userId>`. If the insert fails, nothing is emitted. If the user is offline, nothing is lost: they get it from `GET /api/notifications`.
+2. **One helper.** Features create notifications only through `createNotification({userId, type, listingId, actorId, message})` in `src/lib/server/notifications.js`. It checks the type and ids, trims `message` (long chat previews are shortened to 280 characters), saves, emits, and returns the notification as sent.
+3. **No self-notifications.** If `actorId` equals `userId`, nothing is stored or sent and the helper returns null.
+4. **Read state.** Only the recipient can change a notification, and only `read` to `true`: one at a time (`PATCH /api/notifications/:id`) or all at once (`POST /api/notifications/read-all`). Notifications are never edited otherwise.
+5. **Order.** Newest first (`createdAt`, then `_id`, descending). Indexed on `{userId, createdAt, _id}`.
+6. **Chat.** A chat message sends both `message:new` (the full message, for an open chat) and a `new_message` notification (for the bell).
+
+### Example socket payload
+
+```json
+{
+  "notification": {
+    "_id": "6650f1c2a9e4b1d2c3f4a5b6",
+    "userId": "6650e0a1a9e4b1d2c3f4a001",
+    "type": "offer_received",
+    "listingId": "6650e9b7a9e4b1d2c3f4a100",
+    "actorId": "6650e0a1a9e4b1d2c3f4a002",
+    "message": "Alex offered $80 on \"Used bicycle\"",
+    "read": false,
+    "createdAt": "2026-11-09T18:30:00.000Z"
+  }
+}
+```
+
+### Sign-off
+
+These points differ from, or go beyond, the KAN-27 ticket text. Roles D and E confirm them (or ask for changes), then this section's status changes to **Agreed**.
+
+- [ ] The ticket's "recipient uid" and "actor uid" are `userId` and `actorId`, holding `users._id`, not Firebase UIDs. Socket rooms are `user:<users._id>`.
+- [ ] The ticket's "message text" is the `message` field, written by the server.
+- [ ] Recipients per type, as in the Types table. In particular: `auction_ended` goes to the seller only, and `listing_sold` goes to other buyers with a pending offer.
+- [ ] Being outbid is a `notification:new` of type `outbid`, with no separate `outbid` event.
+- [ ] Mark-all-read is `POST /api/notifications/read-all`.
+
+| Role | Name | Agreed on |
+| --- | --- | --- |
+| D | | |
+| E | | |
