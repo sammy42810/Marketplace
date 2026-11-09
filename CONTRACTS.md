@@ -175,11 +175,12 @@ Response: HTTP 201
 
 ## 3. Socket.IO Events
 
-Sockets use Firebase authentication. The existing server creates a `user:<firebaseUid>` room for each connected user.
+Sockets use Firebase authentication. The client sends `{token}` (a Firebase ID token) in the handshake `auth` payload. Connections with a missing or invalid token are rejected with a `connect_error` whose message is `unauthorized`. The existing server creates a `user:<firebaseUid>` room for each connected user.
 
 | Event | Direction | Data | Status |
 | --- | --- | --- | --- |
-| ping | Client -> Server | Acknowledgement | Existing |
+| clock | Server -> Socket, on connect | {serverTime} (ms since epoch) | Existing |
+| ping | Client -> Server | Acknowledgement -> {serverTime} | Existing |
 | auction:join | Client -> Server | {listingId} | Planned |
 | auction:leave | Client -> Server | {listingId} | Planned |
 | auction:bid | Server -> Auction room | {listingId, amount, bidderId} | Planned |
