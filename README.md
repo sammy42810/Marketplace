@@ -51,8 +51,3 @@ For production: `npm run build`, then `npm start`.
 
 `server.js` runs without the bundler, so it and anything it imports (`sockets.js`,
 `firebaseAdmin.js`) must use relative imports, not `@/`.
-
-## Secrets
-
-`.env.local` holds the Firebase service-account key and is git-ignored. Share it privately,
-never through GitHub. The submission zip needs it.
