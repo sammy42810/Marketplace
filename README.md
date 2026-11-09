@@ -45,6 +45,8 @@ For production: `npm run build`, then `npm start`.
   `@/context/AuthContext`.
 - **Sockets:** `getSocket()` from `@/lib/socketClient`; call `connect()` once signed in. Server
   handlers go in `src/lib/server/sockets.js`. Each user joins the room `user:<firebaseUid>`.
+  For countdowns, use `serverNow()` from `@/lib/socketClient` instead of `Date.now()`. It
+  corrects for the browser's clock being off from the server's.
 - **MongoDB:** `getDb()` from `@/lib/server/mongo`.
 - **ImageMagick:** `runMagick(args)` from `@/lib/server/imagemagick`, with paths relative to
   `storage/`. Only GIF, JPEG, PNG and WebP are allowed (see `docker/imagemagick/policy.xml`).
