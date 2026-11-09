@@ -224,6 +224,20 @@ export async function getListing(id) {
   };
 }
 
+export async function getSellerRating(sellerId) {
+  if (!OBJECT_ID.test(sellerId ?? '')) return {average: null, count: 0};
+  const db = await getDb();
+  const [summary] = await db
+    .collection('reviews')
+    .aggregate([
+      {$match: {revieweeId: new ObjectId(sellerId)}},
+      {$group: {_id: null, average: {$avg: '$rating'}, count: {$sum: 1}}}
+    ])
+    .toArray();
+  if (!summary) return {average: null, count: 0};
+  return {average: Math.round(summary.average * 10) / 10, count: summary.count};
+}
+
 function positiveInt(value, fallback, label) {
   if (value === null) return fallback;
   if (!/^[1-9]\d{0,8}$/.test(value)) throw invalid(`${label} must be a whole number of 1 or more.`);
