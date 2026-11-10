@@ -58,7 +58,7 @@ function AccountMenu({user, onSignOut}) {
       </button>
       <div id='account-menu' className='account-menu' hidden={!open}>
         <p className='account-menu-email'>{user.email}</p>
-        <Link href={ROUTES.profile(user.uid)} onClick={() => setOpen(false)}>
+        <Link href={ROUTES.myProfile} onClick={() => setOpen(false)}>
           Your profile
         </Link>
         <button type='button' onClick={onSignOut}>
