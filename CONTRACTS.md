@@ -94,6 +94,12 @@ The following routes are either already implemented or planned for future develo
 | --- | --- | --- | --- |
 | GET | /api/health | No | Service health information |
 | GET | /api/me | Signed in | {user} |
+| PATCH | /api/me | Signed in, verified | {displayName} -> {user} (public fields) |
+| GET | /api/users/:id | No | -> {user: {_id, displayName, photoUrl, createdAt}} |
+
+`PATCH /api/me` only changes `displayName`: a string of 1 to 50 characters after trimming. Any other field is a 400. It also updates the name in Firebase so the header matches. `GET /api/users/:id` never returns the email or Firebase uid; a malformed or unknown id is a 404.
+
+The profile page is `/users/:id` (MongoDB `_id`). `/users/me` redirects the signed-in user to their own profile.
 
 ### Listings (Existing)
 
