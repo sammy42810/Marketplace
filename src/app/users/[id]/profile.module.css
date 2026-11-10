@@ -1,0 +1,121 @@
+.header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-5);
+  padding-bottom: var(--space-5);
+  border-bottom: 1px solid var(--line);
+}
+
+.avatar {
+  display: grid;
+  flex-shrink: 0;
+  place-items: center;
+  width: 72px;
+  height: 72px;
+  font-size: var(--fs-6);
+  font-stretch: var(--width-condensed);
+  font-weight: var(--weight-black);
+  color: var(--accent-ink);
+  background: var(--accent);
+  border-radius: var(--radius-pill);
+  object-fit: cover;
+}
+
+.identity {
+  flex: 1;
+  min-width: 0;
+}
+
+.identity h1 {
+  margin-bottom: var(--space-2);
+  overflow-wrap: anywhere;
+}
+
+.meta {
+  margin: 0;
+  font-size: var(--fs-2);
+  color: var(--ink-muted);
+}
+
+.editor {
+  display: grid;
+  gap: var(--space-2);
+  width: 100%;
+  max-width: 360px;
+}
+
+.editor label {
+  font-size: var(--fs-2);
+  font-weight: var(--weight-bold);
+}
+
+.editor input {
+  height: 40px;
+  padding: 0 var(--space-3);
+  background: var(--surface);
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius-sm);
+}
+
+.editor input[aria-invalid='true'] {
+  border-color: var(--bad);
+}
+
+.editorActions {
+  display: flex;
+  gap: var(--space-2);
+}
+
+.error {
+  margin: 0;
+  font-size: var(--fs-2);
+  color: var(--bad);
+}
+
+.section {
+  margin-top: var(--space-6);
+}
+
+.section h2 {
+  margin-top: 0;
+}
+
+.grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: var(--space-5) var(--space-4);
+  margin: var(--space-4) 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.empty {
+  padding: var(--space-5);
+  color: var(--ink-muted);
+  background: var(--surface);
+  border: 1px dashed var(--line-strong);
+  border-radius: var(--radius-md);
+}
+
+.notice {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-4);
+  padding: var(--space-5);
+  color: var(--bad);
+  background: var(--bad-bg);
+  border: 1px solid var(--bad);
+  border-radius: var(--radius-md);
+}
+
+.notice p {
+  margin: 0;
+}
+
+.back {
+  margin-top: var(--space-6);
+  font-size: var(--fs-2);
+}

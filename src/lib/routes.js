@@ -7,7 +7,8 @@ export const ROUTES = {
   inbox: '/inbox',
   watchlist: '/watchlist',
   notifications: '/notifications',
-  profile: (uid) => `/users/${uid}`,
+  profile: (id) => `/users/${id}`,
+  myProfile: '/users/me',
   login: '/login',
   signup: '/signup'
 };
