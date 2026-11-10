@@ -9,6 +9,8 @@ const AuthContext = createContext(null);
 export function AuthProvider({children}) {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(firebaseConfigured);
+  // Bumped after reloading the Firebase user, whose fields change in place.
+  const [, setVersion] = useState(0);
 
   useEffect(() => {
     const auth = getClientAuth();
@@ -24,7 +26,11 @@ export function AuthProvider({children}) {
     user,
     loading,
     configured: firebaseConfigured,
-    signOut: () => firebaseSignOut(getClientAuth())
+    signOut: () => firebaseSignOut(getClientAuth()),
+    refreshUser: async () => {
+      await getClientAuth()?.currentUser?.reload();
+      setVersion((version) => version + 1);
+    }
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

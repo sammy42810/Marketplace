@@ -12,8 +12,14 @@ Needs Node.js 20.9+ and Docker Desktop with at least 4 GB of memory.
 npm install
 cp .env.example .env.local   # then fill in the Firebase values (ask the group)
 docker compose up -d         # first run downloads about 1 GB
+npm run seed
 npm run dev
 ```
+
+`npm run seed` creates six accounts and 30 listings, including auctions that are upcoming, live
+and closed. Log in with `priya.seed@example.com` (or marcus, elena, jonah, amara, theo) and the
+password `marketplace-seed-554`. Run it again to reset that data and refresh the auction times;
+anything created by other accounts is left alone.
 
 Open http://localhost:3000/status, sign up, and check that every row says OK.
 
@@ -49,14 +55,11 @@ For production: `npm run build`, then `npm start`.
   `@/context/AuthContext`.
 - **Sockets:** `getSocket()` from `@/lib/socketClient`; call `connect()` once signed in. Server
   handlers go in `src/lib/server/sockets.js`. Each user joins the room `user:<firebaseUid>`.
+  For countdowns, use `serverNow()` from `@/lib/socketClient` instead of `Date.now()`. It
+  corrects for the browser's clock being off from the server's.
 - **MongoDB:** `getDb()` from `@/lib/server/mongo`.
 - **ImageMagick:** `runMagick(args)` from `@/lib/server/imagemagick`, with paths relative to
   `storage/`. Only GIF, JPEG, PNG and WebP are allowed (see `docker/imagemagick/policy.xml`).
 
 `server.js` runs without the bundler, so it and anything it imports (`sockets.js`,
 `firebaseAdmin.js`) must use relative imports, not `@/`.
-
-## Secrets
-
-`.env.local` holds the Firebase service-account key and is git-ignored. Share it privately,
-never through GitHub. The submission zip needs it.
