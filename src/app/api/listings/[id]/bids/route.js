@@ -1,6 +1,7 @@
 import { ObjectId } from "mongodb";
 import { HttpError, withUser } from "@/lib/server/auth";
 import { getDb, getMongoClient } from "@/lib/server/mongo";
+import { createNotification } from "@/lib/server/notifications";
 
 export const runtime = "nodejs";
 
@@ -100,7 +101,7 @@ export const POST = withUser(async (request, context, user) => {
   const db = await getDb();
   const client = await getMongoClient();
   const listings = db.collection("listings");
-  const now = new Date();
+  let now = new Date();
 
   const session = client.startSession();
   let transactionResult;
@@ -109,6 +110,7 @@ export const POST = withUser(async (request, context, user) => {
     // update the highest bid and save the bid together in a transaction
     transactionResult = await session.withTransaction(
       async () => {
+        now = new Date();
         const previousListing = await listings.findOneAndUpdate(
           {
             _id: listingId,
@@ -173,38 +175,31 @@ export const POST = withUser(async (request, context, user) => {
   const { previousListing, res } = transactionResult;
 
   const io = globalThis.marketplaceIo;
+  const listingIdString = listingId.toString();
 
   if (io) {
-    const listingIdString = listingId.toString();
-
     // notify everyone viewing this auction
     io.to(`auction:${listingIdString}`).emit("auction:bid", {
       listingId: listingIdString,
       amount,
       bidderId: user._id.toString(),
     });
+  }
 
-    // notify the previous highest bidder of new bid
-    const previousBidderId = previousListing.currentBidder;
+  // notify the previous highest bidder of the new bid
+  const previousBidderId = previousListing.currentBidder;
 
-    if (previousBidderId && String(previousBidderId) !== String(user._id)) {
-      try {
-        const previousBidder = await db
-          .collection("users")
-          .findOne(
-            { _id: previousBidderId },
-            { projection: { firebaseUid: 1 } },
-          );
-
-        if (previousBidder?.firebaseUid) {
-          io.to(`user:${previousBidder.firebaseUid}`).emit("outbid", {
-            listingId: listingIdString,
-            amount,
-          });
-        }
-      } catch (error) {
-        console.error("Could not send outbid notification:", error);
-      }
+  if (previousBidderId && String(previousBidderId) !== String(user._id)) {
+    try {
+      await createNotification({
+        userId: previousBidderId,
+        type: "outbid",
+        listingId,
+        actorId: user._id,
+        message: `You have been outbid. The new highest bid is $${amount.toFixed(2)}.`,
+      });
+    } catch (error) {
+      console.error("Could not create outbid notification:", error);
     }
   }
 
