@@ -27,6 +27,10 @@ MongoDB is on port **27018** so it doesn't clash with a MongoDB already installe
 Elasticsearch is on 9200. Both only listen on localhost. `docker compose down` stops them
 and keeps their data.
 
+MongoDB runs as a single node replica set to support transactions for auction bidding. This allows the highest bid and bid history to be saved together.
+
+The `mongo-init` service automatically initializes the replica set when running `docker compose up -d`, so no manual setup is needed.
+
 If Elasticsearch keeps exiting on Windows, run
 `wsl -d docker-desktop sysctl -w vm.max_map_count=262144` and start it again.
 
