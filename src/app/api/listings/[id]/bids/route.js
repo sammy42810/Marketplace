@@ -1,5 +1,5 @@
 import { ObjectId } from "mongodb";
-import { HttpError, withUser } from "@/lib/server/auth";
+import { HttpError, withErrors, withUser } from "@/lib/server/auth";
 import { getDb, getMongoClient } from "@/lib/server/mongo";
 import { createNotification } from "@/lib/server/notifications";
 
@@ -216,4 +216,43 @@ export const POST = withUser(async (request, context, user) => {
     },
     { status: 201 },
   );
+});
+
+export const GET = withErrors(async (request, context) => {
+  const { id } = await context.params;
+
+  if (typeof id !== "string" || !/^[0-9a-f]{24}$/i.test(id)) {
+    throw new HttpError(400, "Invalid listing ID.");
+  }
+
+  const db = await getDb();
+  const listingId = new ObjectId(id);
+
+  const listing = await db.collection("listings").findOne({
+    _id: listingId,
+    status: { $ne: "removed" },
+  });
+
+  if (!listing) throw new HttpError(404, "Listing not found.");
+
+  if (listing.saleType !== "auction")
+    throw new HttpError(400, "This listing is not an auction.");
+
+  // get the bid history ordered from newest to oldest
+
+  const bids = await db
+    .collection("bids")
+    .find({ listingId })
+    .sort({ createdAt: -1, _id: -1 })
+    .toArray();
+
+  return Response.json({
+    bids: bids.map((bid) => ({
+      _id: bid._id.toString(),
+      listingId: bid.listingId.toString(),
+      bidderId: bid.bidderId.toString(),
+      amount: bid.amount,
+      createdAt: bid.createdAt.toISOString(),
+    })),
+  });
 });
