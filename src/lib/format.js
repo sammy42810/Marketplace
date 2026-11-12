@@ -24,3 +24,38 @@ export function formatDuration(until, now = new Date()) {
   if (mins > 0) return `${mins}m`;
   return 'under 1m';
 }
+
+const clockTime = new Intl.DateTimeFormat('en-US', {hour: 'numeric', minute: '2-digit'});
+const weekday = new Intl.DateTimeFormat('en-US', {weekday: 'short'});
+const monthDay = new Intl.DateTimeFormat('en-US', {month: 'short', day: 'numeric'});
+const fullDay = new Intl.DateTimeFormat('en-US', {weekday: 'long', month: 'long', day: 'numeric'});
+
+function sameDay(a, b) {
+  return a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate();
+}
+
+export function formatShortTime(value, now = new Date()) {
+  const date = new Date(value);
+  const ms = now.getTime() - date.getTime();
+  if (ms < 60_000) return 'now';
+  if (sameDay(date, now)) return clockTime.format(date);
+  if (ms < 6 * 24 * 60 * 60 * 1000) return weekday.format(date);
+  return monthDay.format(date);
+}
+
+export function formatClock(value) {
+  return clockTime.format(new Date(value));
+}
+
+export function formatDay(value, now = new Date()) {
+  const date = new Date(value);
+  if (sameDay(date, now)) return 'Today';
+  const yesterday = new Date(now);
+  yesterday.setDate(now.getDate() - 1);
+  if (sameDay(date, yesterday)) return 'Yesterday';
+  return fullDay.format(date);
+}
+
+export function isSameDay(a, b) {
+  return sameDay(new Date(a), new Date(b));
+}

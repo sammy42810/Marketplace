@@ -156,6 +156,7 @@ Offers only work on active `saleType: offer` listings, and a seller can't offer 
 | POST | /api/conversations | Yes | {listingId} -> {conversation} |
 | GET | /api/conversations/:id | Party | -> {conversation} |
 | GET | /api/conversations/:id/messages | Party | `?before=<messageId>` -> {messages, hasMore} |
+| POST | /api/conversations/:id/read | Party | -> {updated} (messages to you marked read) |
 | GET | /api/users/:id/reviews | No | -> {reviews} |
 | POST | /api/reviews | Yes | {listingId, revieweeId, rating, comment} -> {review} |
 | GET | /api/notifications | Yes | -> {notifications} |
