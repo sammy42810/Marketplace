@@ -61,12 +61,18 @@ The `location` field uses GeoJSON coordinates `[longitude, latitude]` and a 2dsp
 - amount: Number
 - createdAt: Date
 
+**Conversations**
+- _id: ObjectId
+- listingId, buyerId, sellerId: ObjectId (one per listing and buyer, unique on `{listingId, buyerId}`)
+- lastMessage: {body, senderId, createdAt} or null
+- createdAt, updatedAt: Date
+
 **Messages**
 - _id: ObjectId
 - senderId, recipientId: ObjectId
-- conversationId: String
+- conversationId: String (the conversation's `_id`)
 - listingId: ObjectId or null
-- body: String
+- body: String (1 to 2000 characters after trimming)
 - readAt: Date or null
 - createdAt: Date
 
@@ -142,17 +148,21 @@ Offers only work on active `saleType: offer` listings, and a seller can't offer 
 
 `PATCH /api/offers/:id` only changes a pending offer. The seller sends `accepted` or `rejected`; the buyer sends `cancelled`. Accepting runs in one transaction: the listing becomes `sold` with `buyerId`, `soldPrice` and `soldAt`, and every other pending offer becomes `rejected`. Notifications: `offer_received` to the seller on a new offer, `offer_accepted` or `offer_declined` to the buyer, and `listing_sold` to the other buyers whose pending offers were closed by the sale.
 
-### Messages, Reviews, Notifications (Planned)
+### Conversations (Existing); Reviews, Notifications (Planned)
 
 | Method | Route | Auth | Request / Response |
 | --- | --- | --- | --- |
-| GET | /api/messages | Yes | -> {messages} |
-| POST | /api/messages | Yes | {recipientId, listingId, body} -> {message} |
+| GET | /api/conversations | Yes | -> {conversations} |
+| POST | /api/conversations | Yes | {listingId} -> {conversation} |
+| GET | /api/conversations/:id | Party | -> {conversation} |
+| GET | /api/conversations/:id/messages | Party | `?before=<messageId>` -> {messages, hasMore} |
 | GET | /api/users/:id/reviews | No | -> {reviews} |
 | POST | /api/reviews | Yes | {listingId, revieweeId, rating, comment} -> {review} |
 | GET | /api/notifications | Yes | -> {notifications} |
 | PATCH | /api/notifications/:id | Owner | {read: true} -> {notification} |
 | POST | /api/notifications/read-all | Yes | -> {updated} (count marked read) |
+
+`POST /api/conversations` opens the buyer's conversation about a listing, creating it the first time; the seller can't open one on their own listing (403). `GET /api/conversations` lists the user's conversations that have at least one message, most recently active first, each with `listing: {_id, title, price, status, saleType, thumb}`, `otherUser: {_id, displayName, photoUrl}`, `role` (`buyer` or `seller`) and `unread` (messages to this user with no `readAt`). Anyone who isn't the buyer or seller gets a 404. Messages come 50 at a time, oldest first within the page; pass the first message's `_id` as `before` for older ones. Sending happens over the socket (`chat:send`), not REST.
 
 ### Example: Create Listing
 
@@ -202,8 +212,13 @@ Sockets use Firebase authentication. The client sends `{token}` (a Firebase ID t
 | auction:join | Client -> Server | {listingId} | Planned |
 | auction:leave | Client -> Server | {listingId} | Planned |
 | auction:bid | Server -> Auction room | {listingId, amount, bidderId} | Planned |
-| message:new | Server -> User | {message} | Planned |
+| chat:join | Client -> Server | {conversationId}, ack -> {ok} or {error} | Existing |
+| chat:leave | Client -> Server | {conversationId} | Existing |
+| chat:send | Client -> Server | {conversationId, body}, ack -> {message} or {error, status} | Existing |
+| message:new | Server -> Chat room and both users | {message} | Existing |
 | notification:new | Server -> User | {notification}, see section 4 | Proposed; sender in place |
+
+Chat rooms are named `chat:<conversationId>`; only the buyer and seller can join. `chat:send` needs a verified email and allows 10 messages per 10 seconds per user. The server saves the message, updates the conversation's `lastMessage`, emits `message:new` to the chat room and to both users' rooms (each socket gets it once), then sends the recipient a `new_message` notification.
 
 Auction rooms are named `auction:<listingId>`. Being outbid has no event of its own: the bidder gets a `notification:new` of type `outbid`, and the auction room's `auction:bid` carries the live price.
 
