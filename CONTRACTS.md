@@ -39,10 +39,8 @@
 | minIncrement | Number or null |
 | currentBid | Number or null |
 | currentBidder | ObjectId or null |
-| buyerId | ObjectId, only once sold through an offer |
-| soldPrice | Number, only once sold through an offer |
-| soldAt | Date, only once sold through an offer |
 | createdAt, updatedAt | Date |
+| buyerId, soldPrice, soldAt | ObjectId, Number, Date; only set when an offer is accepted |
 
 The `location` field uses GeoJSON coordinates `[longitude, latitude]` and a 2dsphere index for nearby searches.
 
@@ -61,20 +59,22 @@ The `location` field uses GeoJSON coordinates `[longitude, latitude]` and a 2dsp
 - amount: Number
 - createdAt: Date
 
-**Conversations**
+**Messages**
+- _id: ObjectId
+- senderId, recipientId: ObjectId
+- conversationId: String
+- listingId: ObjectId or null
+- body: String
+- readAt: Date or null
+- createdAt: Date
+
+**Conversations** (KAN-44)
 - _id: ObjectId
 - listingId, buyerId, sellerId: ObjectId (one per listing and buyer, unique on `{listingId, buyerId}`)
 - lastMessage: {body, senderId, createdAt} or null
 - createdAt, updatedAt: Date
 
-**Messages**
-- _id: ObjectId
-- senderId, recipientId: ObjectId
-- conversationId: String (the conversation's `_id`)
-- listingId: ObjectId or null
-- body: String (1 to 2000 characters after trimming)
-- readAt: Date or null
-- createdAt: Date
+Messages are stored in the shape above, with `conversationId` holding the conversation's `_id` as a string and `body` limited to 2000 characters.
 
 **Reviews**
 - _id: ObjectId
@@ -132,38 +132,44 @@ DELETE marks the listing as removed, and removed listings return 404.
 
 **Errors** are `{error: message}`: 400 invalid input, 401 not signed in, 403 not the seller or email unverified, 404 not found or malformed ID, 409 locked.
 
-### Offers and Bids (Existing)
+### Offers and Bids (Planned)
 
 | Method | Route | Auth | Request / Response |
 | --- | --- | --- | --- |
 | POST | /api/listings/:id/offers | Yes | {amount} -> {offer} |
-| GET | /api/listings/:id/offers | Yes | -> {offers} |
-| PATCH | /api/offers/:id | Seller or buyer | {status} -> {offer} |
+| GET | /api/listings/:id/offers | Seller | -> {offers} |
+| PATCH | /api/offers/:id | Authorized user | {status} -> {offer} |
 | POST | /api/listings/:id/bids | Yes | {amount} -> {bid, currentBid} |
 | GET | /api/listings/:id/bids | No | -> {bids} |
+| GET | /api/offers?listingId=:id | Yes | -> {offers} |
 
-Offers only work on active `saleType: offer` listings, and a seller can't offer on their own. A buyer has at most one pending offer per listing (a second is a 409 until they cancel the first).
+`GET /api/offers?listingId=` and `PATCH /api/offers/:id` are built (KAN-49). The GET gives the seller every offer on the listing, newest first, each with `buyer: {_id, displayName, photoUrl}`; anyone else gets only their own offers on it. The PATCH only changes a pending offer: the seller sends `accepted` or `rejected`, the buyer sends `cancelled`. Accepting runs in one transaction: the listing becomes `sold` with `buyerId`, `soldPrice` and `soldAt`, and the other pending offers become `rejected`. It sends `offer_accepted` or `offer_declined` to the buyer, and `listing_sold` to the buyers whose offers were closed by the sale.
 
-`GET /api/listings/:id/offers` gives the seller every offer, newest first, each with `buyer: {_id, displayName, photoUrl}`. Anyone else gets only their own offers on that listing.
-
-`PATCH /api/offers/:id` only changes a pending offer. The seller sends `accepted` or `rejected`; the buyer sends `cancelled`. Accepting runs in one transaction: the listing becomes `sold` with `buyerId`, `soldPrice` and `soldAt`, and every other pending offer becomes `rejected`. Notifications: `offer_received` to the seller on a new offer, `offer_accepted` or `offer_declined` to the buyer, and `listing_sold` to the other buyers whose pending offers were closed by the sale.
-
-### Conversations (Existing); Reviews, Notifications (Planned)
+### Messages, Reviews, Notifications (Planned)
 
 | Method | Route | Auth | Request / Response |
 | --- | --- | --- | --- |
-| GET | /api/conversations | Yes | -> {conversations} |
-| POST | /api/conversations | Yes | {listingId} -> {conversation} |
-| GET | /api/conversations/:id | Party | -> {conversation} |
-| GET | /api/conversations/:id/messages | Party | `?before=<messageId>` -> {messages, hasMore} |
-| POST | /api/conversations/:id/read | Party | -> {updated} (messages to you marked read) |
+| GET | /api/messages | Yes | -> {messages} |
+| POST | /api/messages | Yes | {recipientId, listingId, body} -> {message} |
 | GET | /api/users/:id/reviews | No | -> {reviews} |
 | POST | /api/reviews | Yes | {listingId, revieweeId, rating, comment} -> {review} |
 | GET | /api/notifications | Yes | -> {notifications} |
 | PATCH | /api/notifications/:id | Owner | {read: true} -> {notification} |
 | POST | /api/notifications/read-all | Yes | -> {updated} (count marked read) |
 
-`POST /api/conversations` opens the buyer's conversation about a listing, creating it the first time; the seller can't open one on their own listing (403). `GET /api/conversations` lists the user's conversations that have at least one message, most recently active first, each with `listing: {_id, title, price, status, saleType, thumb}`, `otherUser: {_id, displayName, photoUrl}`, `role` (`buyer` or `seller`) and `unread` (messages to this user with no `readAt`). Anyone who isn't the buyer or seller gets a 404. Messages come 50 at a time, oldest first within the page; pass the first message's `_id` as `before` for older ones. Sending happens over the socket (`chat:send`), not REST.
+### Conversations (KAN-44)
+
+Chat is built per listing, so these routes are used instead of the planned `/api/messages` ones. Sending goes over the socket (`chat:send`), not REST.
+
+| Method | Route | Auth | Request / Response |
+| --- | --- | --- | --- |
+| GET | /api/conversations | Yes | -> {conversations} |
+| POST | /api/conversations | Yes | {listingId} -> {conversation} |
+| GET | /api/conversations/:id | Buyer or seller | -> {conversation} |
+| GET | /api/conversations/:id/messages | Buyer or seller | `?before=<messageId>` -> {messages, hasMore} |
+| POST | /api/conversations/:id/read | Buyer or seller | -> {updated} (messages to you marked read) |
+
+`POST /api/conversations` opens the buyer's conversation about a listing, creating it the first time; the seller can't open one on their own listing (403). `GET /api/conversations` lists conversations that have at least one message, most recently active first, each with `listing: {_id, title, price, status, saleType, thumb}`, `otherUser: {_id, displayName, photoUrl}`, `role` (`buyer` or `seller`) and `unread`. Anyone who isn't the buyer or seller gets a 404. Messages come 50 at a time, oldest first within the page; pass the first message's `_id` as `before` for older ones.
 
 ### Example: Create Listing
 
@@ -213,13 +219,13 @@ Sockets use Firebase authentication. The client sends `{token}` (a Firebase ID t
 | auction:join | Client -> Server | {listingId} | Planned |
 | auction:leave | Client -> Server | {listingId} | Planned |
 | auction:bid | Server -> Auction room | {listingId, amount, bidderId} | Planned |
-| chat:join | Client -> Server | {conversationId}, ack -> {ok} or {error} | Existing |
-| chat:leave | Client -> Server | {conversationId} | Existing |
-| chat:send | Client -> Server | {conversationId, body}, ack -> {message} or {error, status} | Existing |
-| message:new | Server -> Chat room and both users | {message} | Existing |
+| message:new | Server -> User | {message} | Planned |
 | notification:new | Server -> User | {notification}, see section 4 | Proposed; sender in place |
+| chat:join | Client -> Server | {conversationId}, ack -> {ok} or {error} | Existing (KAN-44) |
+| chat:leave | Client -> Server | {conversationId} | Existing (KAN-44) |
+| chat:send | Client -> Server | {conversationId, body}, ack -> {message} or {error, status} | Existing (KAN-44) |
 
-Chat rooms are named `chat:<conversationId>`; only the buyer and seller can join. `chat:send` needs a verified email and allows 10 messages per 10 seconds per user. The server saves the message, updates the conversation's `lastMessage`, emits `message:new` to the chat room and to both users' rooms (each socket gets it once), then sends the recipient a `new_message` notification.
+Chat rooms are named `chat:<conversationId>`; only the buyer and seller can join. `chat:send` needs a verified email and allows 10 messages per 10 seconds per user. The server saves the message, updates the conversation's `lastMessage`, emits `message:new` with `{message}` to the chat room and to both users' rooms (each socket gets it once), then sends the recipient a `new_message` notification.
 
 Auction rooms are named `auction:<listingId>`. Being outbid has no event of its own: the bidder gets a `notification:new` of type `outbid`, and the auction room's `auction:bid` carries the live price.
 

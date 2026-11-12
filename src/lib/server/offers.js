@@ -4,7 +4,6 @@ import {getDb, getMongoClient} from './mongo.js';
 import {createNotification} from './notifications.js';
 
 const OBJECT_ID = /^[0-9a-f]{24}$/i;
-const MAX_AMOUNT = 1_000_000_000;
 const SELLER_STATUSES = ['accepted', 'rejected'];
 const BUYER_STATUSES = ['cancelled'];
 
@@ -13,23 +12,8 @@ function objectIdOr404(id, label) {
   return new ObjectId(id);
 }
 
-function offerAmount(value) {
-  const valid =
-    typeof value === 'number' &&
-    Number.isFinite(value) &&
-    value > 0 &&
-    value <= MAX_AMOUNT &&
-    Math.abs(Math.round(value * 100) - value * 100) <= 1e-6;
-  if (!valid) throw new HttpError(400, 'Amount must be a positive number with at most two decimal places.');
-  return value;
-}
-
 function money(amount) {
   return `$${amount.toFixed(2).replace(/\.00$/, '')}`;
-}
-
-function displayName(user) {
-  return user?.displayName || 'A buyer';
 }
 
 async function offersCollection() {
@@ -38,8 +22,7 @@ async function offersCollection() {
     globalThis.marketplaceOfferIndexes = offers
       .createIndexes([
         {key: {listingId: 1, status: 1, createdAt: -1}},
-        {key: {buyerId: 1, createdAt: -1}},
-        {key: {listingId: 1, buyerId: 1}, unique: true, partialFilterExpression: {status: 'pending'}}
+        {key: {buyerId: 1, createdAt: -1}}
       ])
       .catch((error) => {
         globalThis.marketplaceOfferIndexes = null;
@@ -77,40 +60,8 @@ async function notify(input) {
   }
 }
 
-export async function makeOffer(id, body, user) {
-  const listingId = objectIdOr404(id, 'Listing');
-  const amount = offerAmount(body?.amount);
-  const listing = await findListing(listingId);
-
-  if (listing.saleType !== 'offer') throw new HttpError(400, 'This listing does not accept offers.');
-  if (listing.status !== 'active') throw new HttpError(409, 'This listing is no longer available.');
-  if (listing.sellerId.equals(user._id)) throw new HttpError(403, 'You cannot make an offer on your own listing.');
-
-  const offers = await offersCollection();
-  const now = new Date();
-  const offer = {listingId, buyerId: user._id, amount, status: 'pending', createdAt: now, updatedAt: now};
-  let insertedId;
-  try {
-    ({insertedId} = await offers.insertOne(offer));
-  } catch (error) {
-    if (error?.code === 11000) {
-      throw new HttpError(409, 'You already have a pending offer on this listing. Cancel it to make a new one.');
-    }
-    throw error;
-  }
-
-  await notify({
-    userId: listing.sellerId,
-    type: 'offer_received',
-    listingId,
-    actorId: user._id,
-    message: `${displayName(user)} offered ${money(amount)} on "${listing.title}"`
-  });
-
-  return publicOffer({...offer, _id: insertedId});
-}
-
 export async function listOffers(id, user) {
+  if (id === null) throw new HttpError(400, 'listingId is required.');
   const listingId = objectIdOr404(id, 'Listing');
   const listing = await findListing(listingId);
   const isSeller = listing.sellerId.equals(user._id);

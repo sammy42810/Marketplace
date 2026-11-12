@@ -230,7 +230,7 @@ export default function OfferPanel({listingId, sellerId, price, children}) {
   const [error, setError] = useState(null);
 
   const loadOffers = useCallback(async () => {
-    const data = await authFetch(`/api/listings/${listingId}/offers`);
+    const data = await authFetch(`/api/offers?listingId=${listingId}`);
     setOffers(data.offers);
   }, [listingId]);
 
@@ -241,7 +241,7 @@ export default function OfferPanel({listingId, sellerId, price, children}) {
       return undefined;
     }
     let cancelled = false;
-    Promise.all([authFetch('/api/me'), authFetch(`/api/listings/${listingId}/offers`)]).then(
+    Promise.all([authFetch('/api/me'), authFetch(`/api/offers?listingId=${listingId}`)]).then(
       ([{user: account}, data]) => {
         if (cancelled) return;
         setMe(account);
