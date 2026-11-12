@@ -39,6 +39,9 @@
 | minIncrement | Number or null |
 | currentBid | Number or null |
 | currentBidder | ObjectId or null |
+| buyerId | ObjectId, only once sold through an offer |
+| soldPrice | Number, only once sold through an offer |
+| soldAt | Date, only once sold through an offer |
 | createdAt, updatedAt | Date |
 
 The `location` field uses GeoJSON coordinates `[longitude, latitude]` and a 2dsphere index for nearby searches.
@@ -123,15 +126,21 @@ DELETE marks the listing as removed, and removed listings return 404.
 
 **Errors** are `{error: message}`: 400 invalid input, 401 not signed in, 403 not the seller or email unverified, 404 not found or malformed ID, 409 locked.
 
-### Offers and Bids (Planned)
+### Offers and Bids (Existing)
 
 | Method | Route | Auth | Request / Response |
 | --- | --- | --- | --- |
 | POST | /api/listings/:id/offers | Yes | {amount} -> {offer} |
-| GET | /api/listings/:id/offers | Seller | -> {offers} |
-| PATCH | /api/offers/:id | Authorized user | {status} -> {offer} |
+| GET | /api/listings/:id/offers | Yes | -> {offers} |
+| PATCH | /api/offers/:id | Seller or buyer | {status} -> {offer} |
 | POST | /api/listings/:id/bids | Yes | {amount} -> {bid, currentBid} |
 | GET | /api/listings/:id/bids | No | -> {bids} |
+
+Offers only work on active `saleType: offer` listings, and a seller can't offer on their own. A buyer has at most one pending offer per listing (a second is a 409 until they cancel the first).
+
+`GET /api/listings/:id/offers` gives the seller every offer, newest first, each with `buyer: {_id, displayName, photoUrl}`. Anyone else gets only their own offers on that listing.
+
+`PATCH /api/offers/:id` only changes a pending offer. The seller sends `accepted` or `rejected`; the buyer sends `cancelled`. Accepting runs in one transaction: the listing becomes `sold` with `buyerId`, `soldPrice` and `soldAt`, and every other pending offer becomes `rejected`. Notifications: `offer_received` to the seller on a new offer, `offer_accepted` or `offer_declined` to the buyer, and `listing_sold` to the other buyers whose pending offers were closed by the sale.
 
 ### Messages, Reviews, Notifications (Planned)
 

@@ -1,0 +1,236 @@
+.form,
+.yours {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.label,
+.yoursLabel {
+  font-size: var(--fs-1);
+  font-stretch: var(--width-semi);
+  font-weight: var(--weight-bold);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--ink-muted);
+}
+
+.inputRow {
+  display: flex;
+  align-items: stretch;
+  height: 52px;
+  background: var(--surface);
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius-sm);
+  transition: border-color var(--dur-fast) var(--ease-out);
+}
+
+.inputRow:focus-within {
+  border-color: var(--ink);
+  box-shadow: inset 0 -3px 0 var(--tag);
+}
+
+.currency {
+  display: grid;
+  place-items: center;
+  padding: 0 var(--space-3);
+  font-size: var(--fs-5);
+  font-stretch: var(--width-condensed);
+  font-weight: var(--weight-black);
+  color: var(--ink-muted);
+  border-right: 1px solid var(--line);
+}
+
+.inputRow input {
+  flex: 1;
+  min-width: 0;
+  padding: 0 var(--space-3);
+  font-size: var(--fs-5);
+  font-stretch: var(--width-semi);
+  font-weight: var(--weight-bold);
+  font-variant-numeric: tabular-nums;
+  background: none;
+  border: 0;
+}
+
+.inputRow input:focus-visible {
+  outline: none;
+}
+
+.inputRow input::placeholder {
+  font-weight: var(--weight-regular);
+  color: var(--line-strong);
+}
+
+.hint,
+.previous,
+.empty {
+  margin: 0;
+  font-size: var(--fs-2);
+  color: var(--ink-muted);
+}
+
+.previous {
+  padding: var(--space-2) var(--space-3);
+  color: var(--ink);
+  background: var(--surface-sunk);
+  border-radius: var(--radius-sm);
+}
+
+.error {
+  margin: 0;
+  padding: var(--space-2) var(--space-3);
+  font-size: var(--fs-2);
+  color: var(--bad);
+  background: var(--bad-bg);
+  border-radius: var(--radius-sm);
+}
+
+.yours {
+  padding: var(--space-4);
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-left: 4px solid var(--tag);
+  border-radius: var(--radius-sm);
+}
+
+.yoursRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+
+.yoursAmount {
+  margin: 0;
+  font-size: var(--fs-7);
+  font-stretch: var(--width-condensed);
+  font-weight: var(--weight-black);
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+}
+
+.chip {
+  display: inline-flex;
+  align-items: center;
+  min-height: 24px;
+  padding: 0 var(--space-2);
+  font-size: var(--fs-1);
+  font-stretch: var(--width-semi);
+  font-weight: var(--weight-bold);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  white-space: nowrap;
+  border-radius: var(--radius-sm);
+}
+
+.chip[data-status='pending'] {
+  color: var(--tag-ink);
+  background: var(--tag);
+}
+
+.chip[data-status='accepted'] {
+  color: var(--good);
+  background: var(--good-bg);
+}
+
+.chip[data-status='rejected'],
+.chip[data-status='cancelled'] {
+  color: var(--ink-muted);
+  background: var(--surface-sunk);
+}
+
+.seller {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.sellerHead {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-3);
+  padding-bottom: var(--space-2);
+  border-bottom: 2px solid var(--ink);
+}
+
+.sellerHead h2 {
+  margin: 0;
+  font-size: var(--fs-5);
+}
+
+.count {
+  font-size: var(--fs-2);
+  font-stretch: var(--width-semi);
+  font-weight: var(--weight-bold);
+  font-variant-numeric: tabular-nums;
+  color: var(--ink-muted);
+}
+
+.offers {
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.offer {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: var(--space-2) var(--space-3);
+  padding: var(--space-3) 0;
+  border-bottom: 1px dashed var(--line-strong);
+}
+
+.offer:last-child {
+  border-bottom: 0;
+}
+
+.offer[data-status='rejected'],
+.offer[data-status='cancelled'] {
+  opacity: 0.6;
+}
+
+.offerMain {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.offerAmount {
+  font-size: var(--fs-5);
+  font-stretch: var(--width-condensed);
+  font-weight: var(--weight-black);
+  font-variant-numeric: tabular-nums;
+}
+
+.offerMeta {
+  overflow: hidden;
+  font-size: var(--fs-2);
+  color: var(--ink-muted);
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.buyer {
+  font-weight: var(--weight-bold);
+  color: var(--ink);
+}
+
+.offerActions {
+  display: flex;
+  gap: var(--space-2);
+}
+
+.offer .error {
+  grid-column: 1 / -1;
+}
+
+@media (max-width: 420px) {
+  .offer {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}

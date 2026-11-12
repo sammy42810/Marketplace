@@ -141,7 +141,8 @@ function serialize(listing) {
     ...listing,
     _id: listing._id.toString(),
     sellerId: listing.sellerId.toString(),
-    currentBidder: listing.currentBidder?.toString() ?? null
+    currentBidder: listing.currentBidder?.toString() ?? null,
+    ...(listing.buyerId && {buyerId: listing.buyerId.toString()})
   };
 }
 
