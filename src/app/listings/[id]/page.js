@@ -1,6 +1,7 @@
 import {cache} from 'react';
 import Link from 'next/link';
 import {notFound} from 'next/navigation';
+import MessageSellerButton from '@/components/MessageSellerButton';
 import {HttpError} from '@/lib/server/auth';
 import {getListing, getSellerRating} from '@/lib/server/listings';
 import {ROUTES} from '@/lib/routes';
@@ -115,9 +116,7 @@ export default async function ListingPage({params}) {
   const shownPrice = state === 'sold' && listing.soldPrice != null ? listing.soldPrice : hasBid ? listing.currentBid : listing.price;
   const secondaryActions = (
     <div className={styles.secondary}>
-      <button type='button' className='btn btn-quiet' disabled>
-        Message seller
-      </button>
+      <MessageSellerButton listingId={listing._id} sellerId={listing.sellerId} />
       <button type='button' className='btn btn-quiet' disabled>
         Watch
       </button>

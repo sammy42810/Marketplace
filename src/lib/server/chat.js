@@ -283,3 +283,13 @@ export async function sendMessage(conversationIdValue, bodyValue, userId) {
 
   return sent;
 }
+
+export async function markRead(id, userId) {
+  const conversation = await findConversation(id, userId);
+  const {messages} = await chatCollections();
+  const {modifiedCount} = await messages.updateMany(
+    {conversationId: conversation._id.toString(), recipientId: userId, readAt: null},
+    {$set: {readAt: new Date()}}
+  );
+  return {updated: modifiedCount};
+}
