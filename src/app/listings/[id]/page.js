@@ -6,6 +6,7 @@ import {getListing, getSellerRating} from '@/lib/server/listings';
 import {ROUTES} from '@/lib/routes';
 import {formatDuration, formatLabel, formatPrice} from '@/lib/format';
 import Gallery from './Gallery';
+import OfferPanel from './OfferPanel';
 import styles from './listing.module.css';
 
 export const dynamic = 'force-dynamic';
@@ -111,6 +112,17 @@ export default async function ListingPage({params}) {
   const hasBid = isAuction && listing.currentBid != null;
   const timeLeft = state === 'live' ? formatDuration(listing.endsAt, now) : null;
   const urgent = state === 'live' && new Date(listing.endsAt).getTime() - now.getTime() < 60 * 60 * 1000;
+  const shownPrice = state === 'sold' && listing.soldPrice != null ? listing.soldPrice : hasBid ? listing.currentBid : listing.price;
+  const secondaryActions = (
+    <div className={styles.secondary}>
+      <button type='button' className='btn btn-quiet' disabled>
+        Message seller
+      </button>
+      <button type='button' className='btn btn-quiet' disabled>
+        Watch
+      </button>
+    </div>
+  );
 
   return (
     <>
@@ -147,7 +159,7 @@ export default async function ListingPage({params}) {
             <span className={styles.priceLabel}>
               {state === 'sold' ? 'Sold for' : !isAuction ? 'Price' : !hasBid ? 'Starting bid' : state === 'ended' ? 'Final bid' : 'Current bid'}
             </span>
-            <span className={styles.price}>{formatPrice(hasBid ? listing.currentBid : listing.price)}</span>
+            <span className={styles.price}>{formatPrice(shownPrice)}</span>
           </div>
 
           {isAuction && state !== 'sold' && (
@@ -191,19 +203,18 @@ export default async function ListingPage({params}) {
             </dl>
           )}
 
-          {(state === 'offer' || state === 'live') && (
+          {state === 'offer' && (
+            <OfferPanel listingId={listing._id} sellerId={listing.sellerId} price={listing.price}>
+              {secondaryActions}
+            </OfferPanel>
+          )}
+
+          {state === 'live' && (
             <div className={styles.actions}>
               <button type='button' className='btn btn-primary' disabled>
-                {state === 'live' ? 'Place a bid' : 'Make an offer'}
+                Place a bid
               </button>
-              <div className={styles.secondary}>
-                <button type='button' className='btn btn-quiet' disabled>
-                  Message seller
-                </button>
-                <button type='button' className='btn btn-quiet' disabled>
-                  Watch
-                </button>
-              </div>
+              {secondaryActions}
             </div>
           )}
 
