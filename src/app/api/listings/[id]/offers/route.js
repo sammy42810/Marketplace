@@ -1,6 +1,7 @@
 import { ObjectId } from "mongodb";
 import { HttpError, withUser } from "@/lib/server/auth";
 import { getDb } from "@/lib/server/mongo";
+import { createNotification } from "@/lib/server/notifications";
 
 export const runtime = "nodejs";
 
@@ -61,6 +62,19 @@ export const POST = withUser(async (request, context, user) => {
   };
 
   const result = await db.collection("offers").insertOne(offer);
+
+  // notify the seller when a new offer is submitted
+  try {
+    await createNotification({
+      userId: listing.sellerId,
+      type: "offer_received",
+      listingId,
+      actorId: user._id,
+      message: `You received a $${amount.toFixed(2)} offer on "${listing.title}".`,
+    });
+  } catch (error) {
+    console.error("Could not create offer notification:", error);
+  }
 
   return Response.json(
     {
