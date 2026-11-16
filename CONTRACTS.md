@@ -34,13 +34,22 @@
 | photos | Array of {thumb, card, full} URLs |
 | zip | String |
 | location | GeoJSON Point |
-| status | String (active/sold/removed) |
+| status | String (scheduled/active/sold/ended/removed) |
 | startsAt, endsAt | Date or null |
 | minIncrement | Number or null |
 | currentBid | Number or null |
 | currentBidder | ObjectId or null |
 | createdAt, updatedAt | Date |
-| buyerId, soldPrice, soldAt | ObjectId, Number, Date; only set when an offer is accepted |
+| buyerId, soldPrice, soldAt | ObjectId, Number, Date; set when an offer is accepted or an auction ends with a winner |
+
+Auction statuses:
+- scheduled: Auction has not reached startsAt.
+- active: Auction is live and accepts bids.
+- sold: Auction ended with a winning bidder.
+- ended: Auction ended without any bids.
+- removed: Listing was removed.
+
+The auction job starts scheduled auctions at startsAt and closes expired auctions. When an auction has a winner, buyerId, soldPrice, and soldAt are saved.
 
 The `location` field uses GeoJSON coordinates `[longitude, latitude]` and a 2dsphere index for nearby searches.
 
@@ -259,7 +268,7 @@ User references are `users._id`, never Firebase UIDs, the same as `sellerId`, `b
 | offer_declined | Buyer | Seller | The seller declines the offer (offer status `rejected`) |
 | outbid | Previous high bidder | New high bidder | Someone places a higher bid |
 | auction_won | Winning bidder | null | An auction ends with bids |
-| auction_ended | Seller | null | An auction ends, with or without bids |
+| auction_ended | Seller and losing bidders | null | An auction ends, with or without bids |
 | price_drop | Everyone watching the listing (KAN-37) | Seller | The seller lowers the price |
 | listing_sold | Other buyers with a pending offer | null | The listing sells to someone else |
 | new_message | Message recipient | Sender | A chat message arrives |
@@ -268,8 +277,8 @@ Example messages: `Alex offered $80 on "Used bicycle"`, `You were outbid on "Des
 
 ### Rules
 
-1. **Save, then emit.** The server inserts the document into MongoDB first, then emits `notification:new` with `{notification}` to `user:<userId>`. If the insert fails, nothing is emitted. If the user is offline, nothing is lost: they get it from `GET /api/notifications`.
-2. **One helper.** Features create notifications only through `createNotification({userId, type, listingId, actorId, message})` in `src/lib/server/notifications.js`. It checks the type and ids, trims `message` (long chat previews are shortened to 280 characters), saves, emits, and returns the notification as sent.
+1. **Save, then emit.** The server inserts the document into MongoDB first, then emits `notification:new` with `{notification}` to `user:<userId>`. If the insert fails, nothing is emitted. If the user is offline, nothing is lost: they get it from `GET /api/notifications`. For auction closing, notifications are saved in the same MongoDB transaction as the listing update. Live events are emitted only after the transaction commits.
+2. **One helper.** Features create notifications only through `createNotification({userId, type, listingId, actorId, message, session})` in `src/lib/server/notifications.js`. It validates the type and IDs, trims the message, and saves the notification. Without a session, it also emits the notification immediately. With a session, the caller emits it after the transaction commits.
 3. **No self-notifications.** If `actorId` equals `userId`, nothing is stored or sent and the helper returns null.
 4. **Read state.** Only the recipient can change a notification, and only `read` to `true`: one at a time (`PATCH /api/notifications/:id`) or all at once (`POST /api/notifications/read-all`). Notifications are never edited otherwise.
 5. **Order.** Newest first (`createdAt`, then `_id`, descending). Indexed on `{userId, createdAt, _id}`.
@@ -298,7 +307,7 @@ These points differ from, or go beyond, the KAN-27 ticket text. Roles D and E co
 
 - [ ] The ticket's "recipient uid" and "actor uid" are `userId` and `actorId`, holding `users._id`, not Firebase UIDs. Socket rooms are `user:<users._id>`.
 - [ ] The ticket's "message text" is the `message` field, written by the server.
-- [ ] Recipients per type, as in the Types table. In particular: `auction_ended` goes to the seller only, and `listing_sold` goes to other buyers with a pending offer.
+- [ ] Recipients per type, as in the Types table. In particular: `auction_ended` goes to the seller and losing bidders, and `listing_sold` goes to other buyers with a pending offer.
 - [ ] Being outbid is a `notification:new` of type `outbid`, with no separate `outbid` event.
 - [ ] Mark-all-read is `POST /api/notifications/read-all`.
 

@@ -3,6 +3,7 @@ import next from "next";
 import nextEnv from "@next/env";
 import { attachSockets } from "./src/lib/server/sockets.js";
 import { ensureListingsIndex } from "./src/lib/search/client.js";
+import { runAuctionJob } from "./src/lib/server/auctionJob.js";
 
 const dev = !process.argv.includes("--production");
 
@@ -21,8 +22,27 @@ await ensureListingsIndex();
 const httpServer = createServer((req, res) => handle(req, res));
 globalThis.marketplaceIo = attachSockets(httpServer);
 
+let auctionJobRunning = false;
+
+async function checkAuctions() {
+  if (auctionJobRunning) return;
+
+  auctionJobRunning = true;
+
+  try {
+    await runAuctionJob();
+  } catch (error) {
+    console.error("Auction job failed:", error);
+  } finally {
+    auctionJobRunning = false;
+  }
+}
+
 httpServer.listen(port, () => {
   console.log(
     `> Marketplace ready on http://${hostname}:${port} (${dev ? "development" : "production"})`,
   );
+
+  checkAuctions();
+  setInterval(checkAuctions, 5000);
 });
