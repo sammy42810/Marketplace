@@ -5,6 +5,7 @@ import Link from 'next/link';
 import {usePathname, useRouter} from 'next/navigation';
 import {useAuth} from '@/context/AuthContext';
 import {ROUTES} from '@/lib/routes';
+import SearchBox from './SearchBox';
 
 const SIGNED_IN_LINKS = [
   {href: ROUTES.inbox, label: 'Inbox'},
@@ -93,13 +94,7 @@ export default function SiteHeader() {
           Marketplace
         </Link>
 
-        <form className='header-search' role='search' action={ROUTES.search} method='get'>
-          <label htmlFor='site-search' className='sr-only'>
-            Search listings
-          </label>
-          <input id='site-search' type='search' name='q' placeholder='Search listings' autoComplete='off' />
-          <button type='submit'>Search</button>
-        </form>
+        <SearchBox />
 
         <button
           type='button'

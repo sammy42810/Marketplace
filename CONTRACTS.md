@@ -145,7 +145,7 @@ DELETE marks the listing as removed, and removed listings return 404.
 
 `GET /api/offers?listingId=` and `PATCH /api/offers/:id` are built (KAN-49). The GET gives the seller every offer on the listing, newest first, each with `buyer: {_id, displayName, photoUrl}`; anyone else gets only their own offers on it. The PATCH only changes a pending offer: the seller sends `accepted` or `rejected`, the buyer sends `cancelled`. Accepting runs in one transaction: the listing becomes `sold` with `buyerId`, `soldPrice` and `soldAt`, and the other pending offers become `rejected`. It sends `offer_accepted` or `offer_declined` to the buyer, and `listing_sold` to the buyers whose offers were closed by the sale.
 
-### Messages, Reviews, Notifications (Planned)
+### Messages and Reviews (Planned)
 
 | Method | Route | Auth | Request / Response |
 | --- | --- | --- | --- |
@@ -153,9 +153,24 @@ DELETE marks the listing as removed, and removed listings return 404.
 | POST | /api/messages | Yes | {recipientId, listingId, body} -> {message} |
 | GET | /api/users/:id/reviews | No | -> {reviews} |
 | POST | /api/reviews | Yes | {listingId, revieweeId, rating, comment} -> {review} |
-| GET | /api/notifications | Yes | -> {notifications} |
-| PATCH | /api/notifications/:id | Owner | {read: true} -> {notification} |
+
+### Notifications (KAN-47)
+
+| Method | Route | Auth | Request / Response |
+| --- | --- | --- | --- |
+| GET | /api/notifications | Yes | `?before=<notificationId>` -> {notifications, hasMore, unread} |
+| PATCH | /api/notifications/:id | Recipient | {read: true} -> {notification} |
 | POST | /api/notifications/read-all | Yes | -> {updated} (count marked read) |
+
+Notifications use the format in [section 4](#4-notifications). `GET` returns 30 at a time, newest first; pass the last one's `_id` as `before` for older ones. `unread` is the user's total unread count, for the header badge; after that, add 1 for each `notification:new` the socket receives. `PATCH` accepts exactly `{"read": true}` (anything else is a 400). Someone else's notification, or a malformed or unknown id, is a 404.
+
+### Search suggestions (KAN-40)
+
+| Method | Route | Auth | Request / Response |
+| --- | --- | --- | --- |
+| GET | /api/search/suggest | No | `?q=<text>` -> {suggestions: [{_id, title}]} |
+
+Returns up to 6 active listings whose title has a word starting with the typed text, from the Elasticsearch `listings` index (`title.autocomplete`). Text shorter than 2 characters returns an empty list; over 100 is a 400; Elasticsearch being down is a 503. The header search box opens `/listings/:id` for a picked suggestion. **The listing sync (KAN-38) must index each listing with its MongoDB `_id` as the Elasticsearch document `_id`, and keep `title` and `status` up to date.**
 
 ### Conversations (KAN-44)
 
@@ -220,7 +235,7 @@ Sockets use Firebase authentication. The client sends `{token}` (a Firebase ID t
 | auction:leave | Client -> Server | {listingId} | Planned |
 | auction:bid | Server -> Auction room | {listingId, amount, bidderId} | Planned |
 | message:new | Server -> User | {message} | Planned |
-| notification:new | Server -> User | {notification}, see section 4 | Proposed; sender in place |
+| notification:new | Server -> User | {notification}, see section 4 | Existing (KAN-47) |
 | chat:join | Client -> Server | {conversationId}, ack -> {ok} or {error} | Existing (KAN-44) |
 | chat:leave | Client -> Server | {conversationId} | Existing (KAN-44) |
 | chat:send | Client -> Server | {conversationId, body}, ack -> {message} or {error, status} | Existing (KAN-44) |
