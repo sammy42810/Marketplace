@@ -2,7 +2,7 @@
 import { ObjectId } from "mongodb";
 import { Server } from "socket.io";
 import { HttpError } from "./auth.js";
-import { chatRoom, findConversation, sendMessage } from "./chat.js";
+import { chatRoom, findConversation, relayTyping, sendMessage } from "./chat.js";
 import { FirebaseConfigError, getAdminAuth } from "./firebaseAdmin.js";
 import { setIo, userRoom } from "./realtime.js";
 import { findOrCreateUser } from "./users.js";
@@ -97,6 +97,8 @@ export function attachSockets(httpServer) {
         return { message };
       });
     });
+
+    socket.on("chat:typing", (payload) => relayTyping(socket, payload));
   });
 
   setIo(io);

@@ -10,6 +10,7 @@ const PAGE_SIZE = 50;
 const INBOX_SIZE = 100;
 const SEND_LIMIT = 10;
 const SEND_WINDOW_MS = 10_000;
+const TYPING_THROTTLE_MS = 1000;
 const sendTimes = (globalThis.marketplaceChatSends ??= new Map());
 
 export function chatRoom(conversationId) {
@@ -287,9 +288,31 @@ export async function sendMessage(conversationIdValue, bodyValue, userId) {
 export async function markRead(id, userId) {
   const conversation = await findConversation(id, userId);
   const {messages} = await chatCollections();
+  const conversationId = conversation._id.toString();
+  const readAt = new Date();
   const {modifiedCount} = await messages.updateMany(
-    {conversationId: conversation._id.toString(), recipientId: userId, readAt: null},
-    {$set: {readAt: new Date()}}
+    {conversationId, recipientId: userId, readAt: null},
+    {$set: {readAt}}
   );
+  if (modifiedCount > 0) {
+    globalThis.marketplaceIo
+      ?.to(chatRoom(conversationId))
+      .to(userRoom(userId.toString()))
+      .to(userRoom(otherParty(conversation, userId).toString()))
+      .emit('chat:read', {conversationId, readerId: userId.toString(), readAt: readAt.toISOString()});
+  }
   return {updated: modifiedCount};
+}
+
+export function relayTyping(socket, payload) {
+  const {conversationId, typing} = payload ?? {};
+  if (typeof conversationId !== 'string' || !OBJECT_ID.test(conversationId)) return;
+  const id = conversationId.toLowerCase();
+  const room = chatRoom(id);
+  if (!socket.rooms.has(room)) return;
+  const active = typing !== false;
+  const now = Date.now();
+  if (active && now - (socket.data.typingAt ?? 0) < TYPING_THROTTLE_MS) return;
+  socket.data.typingAt = active ? now : 0;
+  socket.to(room).emit('chat:typing', {conversationId: id, userId: socket.data.userId, typing: active});
 }
