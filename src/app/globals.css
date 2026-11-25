@@ -265,6 +265,7 @@ button {
 .site-header-inner {
   display: grid;
   grid-template-columns: auto minmax(0, 1fr) auto;
+  grid-auto-columns: auto;
   align-items: center;
   gap: var(--space-5);
   min-height: var(--header-height);
@@ -368,6 +369,19 @@ button {
 .search-suggestions li:hover,
 .search-suggestions li[aria-selected='true'] {
   background: var(--surface-sunk);
+}
+
+.header-tools {
+  display: flex;
+  grid-row: 1;
+  grid-column: 4;
+  align-items: center;
+  gap: var(--space-2);
+  margin-left: calc(var(--space-2) - var(--space-5));
+}
+
+.header-tools:not(:has(> :not(.menu-toggle))) {
+  display: none;
 }
 
 .site-nav {
@@ -508,6 +522,13 @@ button {
 
   .menu-toggle {
     display: inline-flex;
+  }
+
+  .header-tools,
+  .header-tools:not(:has(> :not(.menu-toggle))) {
+    display: flex;
+    grid-column: 2;
+    margin-left: 0;
   }
 
   .site-nav {

@@ -1,0 +1,131 @@
+.item {
+  --tone: var(--accent);
+  position: relative;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  border-bottom: 1px solid var(--line);
+}
+
+.item:last-child {
+  border-bottom: 0;
+}
+
+.item[data-tone='live'] {
+  --tone: var(--live);
+}
+
+.item[data-tone='win'] {
+  --tone: var(--warn);
+}
+
+.item[data-tone='good'] {
+  --tone: var(--good);
+}
+
+.item[data-tone='message'] {
+  --tone: var(--ink);
+}
+
+.item[data-tone='muted'] {
+  --tone: var(--ink-muted);
+}
+
+.item[data-unread='true'] {
+  background: var(--accent-soft);
+}
+
+.item[data-unread='true']::before {
+  content: '';
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 4px;
+  background: var(--tone);
+}
+
+.link {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  min-width: 0;
+  padding: var(--space-3) var(--space-4) var(--space-3) var(--space-5);
+  color: var(--ink);
+  text-decoration: none;
+  transition: background-color var(--dur-fast) var(--ease-out);
+}
+
+.link:hover {
+  color: var(--ink);
+  background: rgb(19 36 30 / 0.04);
+}
+
+.item[data-compact='true'] .link {
+  padding-block: var(--space-2);
+}
+
+.meta {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+
+.label {
+  font-size: var(--fs-1);
+  font-stretch: var(--width-condensed);
+  font-weight: var(--weight-black);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--tone);
+}
+
+.time {
+  flex-shrink: 0;
+  font-size: var(--fs-1);
+  font-variant-numeric: tabular-nums;
+  color: var(--ink-muted);
+}
+
+.message {
+  font-size: var(--fs-2);
+  line-height: var(--lh-snug);
+  overflow-wrap: anywhere;
+}
+
+.item[data-unread='true'] .message {
+  font-weight: var(--weight-medium);
+}
+
+.item[data-compact='true'] .message {
+  display: -webkit-box;
+  overflow: hidden;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+
+.mark {
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  margin-right: var(--space-2);
+  background: none;
+  border: 0;
+  border-radius: var(--radius-pill);
+}
+
+.mark:hover {
+  background: var(--surface);
+}
+
+.dot {
+  width: 10px;
+  height: 10px;
+  background: var(--tone);
+  border-radius: var(--radius-pill);
+  transition: transform var(--dur-fast) var(--ease-out);
+}
+
+.mark:hover .dot {
+  transform: scale(0.6);
+}

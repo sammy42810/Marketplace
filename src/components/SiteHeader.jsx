@@ -5,12 +5,12 @@ import Link from 'next/link';
 import {usePathname, useRouter} from 'next/navigation';
 import {useAuth} from '@/context/AuthContext';
 import {ROUTES} from '@/lib/routes';
+import NotificationBell from './NotificationBell';
 import SearchBox from './SearchBox';
 
 const SIGNED_IN_LINKS = [
   {href: ROUTES.inbox, label: 'Inbox'},
-  {href: ROUTES.watchlist, label: 'Watchlist'},
-  {href: ROUTES.notifications, label: 'Notifications'}
+  {href: ROUTES.watchlist, label: 'Watchlist'}
 ];
 
 function NavLink({href, pathname, children}) {
@@ -96,15 +96,18 @@ export default function SiteHeader() {
 
         <SearchBox />
 
-        <button
-          type='button'
-          className='btn btn-quiet menu-toggle'
-          aria-expanded={menuOpen}
-          aria-controls='site-nav'
-          onClick={() => setMenuOpen(!menuOpen)}
-        >
-          {menuOpen ? 'Close' : 'Menu'}
-        </button>
+        <div className='header-tools'>
+          {!loading && user && <NotificationBell />}
+          <button
+            type='button'
+            className='btn btn-quiet menu-toggle'
+            aria-expanded={menuOpen}
+            aria-controls='site-nav'
+            onClick={() => setMenuOpen(!menuOpen)}
+          >
+            {menuOpen ? 'Close' : 'Menu'}
+          </button>
+        </div>
 
         <nav id='site-nav' className='site-nav' aria-label='Main' data-open={menuOpen}>
           {!loading &&
