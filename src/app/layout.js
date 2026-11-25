@@ -1,4 +1,5 @@
 import {AuthProvider} from '@/context/AuthContext';
+import {NotificationsProvider} from '@/context/NotificationsContext';
 import SiteHeader from '@/components/SiteHeader';
 import SiteFooter from '@/components/SiteFooter';
 import '@fontsource-variable/archivo/wdth.css';
@@ -14,9 +15,11 @@ export default function RootLayout({children}) {
     <html lang='en'>
       <body>
         <AuthProvider>
-          <SiteHeader />
-          <main className='site-main'>{children}</main>
-          <SiteFooter />
+          <NotificationsProvider>
+            <SiteHeader />
+            <main className='site-main'>{children}</main>
+            <SiteFooter />
+          </NotificationsProvider>
         </AuthProvider>
       </body>
     </html>
