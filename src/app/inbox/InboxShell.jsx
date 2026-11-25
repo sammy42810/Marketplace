@@ -143,9 +143,16 @@ export default function InboxShell({children}) {
       });
     };
 
+    const onRead = ({conversationId, readerId}) => {
+      if (readerId !== meId) return;
+      setConversations((list) => list?.map((item) => (item._id === conversationId ? {...item, unread: 0} : item)) ?? list);
+    };
+
     socket.on('message:new', onMessage);
+    socket.on('chat:read', onRead);
     return () => {
       socket.off('message:new', onMessage);
+      socket.off('chat:read', onRead);
     };
   }, [meId, reload]);
 

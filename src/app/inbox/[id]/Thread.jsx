@@ -11,11 +11,18 @@ import styles from '../inbox.module.css';
 
 const MAX_BODY = 2000;
 const SEND_TIMEOUT_MS = 10_000;
+const TYPING_SEND_MS = 2000;
+const TYPING_SHOW_MS = 5000;
+const NEAR_BOTTOM_PX = 160;
 
 function addMessages(list, incoming) {
   const seen = new Set(list.map((message) => message._id));
   const fresh = incoming.filter((message) => !seen.has(message._id));
   return fresh.length === 0 ? list : [...list, ...fresh];
+}
+
+function typingLabel(conversation) {
+  return conversation.otherUser?.displayName || (conversation.role === 'buyer' ? 'Seller' : 'Buyer');
 }
 
 function ThreadHeader({conversation}) {
@@ -60,7 +67,38 @@ function ThreadHeader({conversation}) {
   );
 }
 
-function Messages({messages, meId, hasMore, loadingOlder, onLoadOlder, scrollRef}) {
+function Receipt({message}) {
+  if (message.readAt) {
+    return (
+      <span className={styles.receipt} data-seen='true'>
+        Seen {formatClock(message.readAt)}
+      </span>
+    );
+  }
+  return <span className={styles.receipt}>Sent</span>;
+}
+
+function TypingBubble({name}) {
+  return (
+    <div className={styles.message} data-typing='true'>
+      <p className={`${styles.bubble} ${styles.typingBubble}`}>
+        <span className={styles.dots} aria-hidden='true'>
+          <span />
+          <span />
+          <span />
+        </span>
+        <span className='sr-only'>{name} is typing</span>
+      </p>
+    </div>
+  );
+}
+
+function Messages({messages, meId, hasMore, loadingOlder, onLoadOlder, scrollRef, typingName}) {
+  let lastMine = -1;
+  messages.forEach((message, index) => {
+    if (message.senderId === meId) lastMine = index;
+  });
+
   return (
     <div className={styles.messages} ref={scrollRef} role='log' aria-live='polite' aria-label='Messages'>
       {hasMore && (
@@ -83,18 +121,22 @@ function Messages({messages, meId, hasMore, loadingOlder, onLoadOlder, scrollRef
             )}
             <div className={styles.message} data-mine={mine ? 'true' : undefined} data-grouped={grouped ? 'true' : undefined}>
               <p className={styles.bubble}>{message.body}</p>
-              <time className={styles.messageTime} dateTime={message.createdAt}>
-                {formatClock(message.createdAt)}
-              </time>
+              <span className={styles.messageMeta}>
+                <time className={styles.messageTime} dateTime={message.createdAt}>
+                  {formatClock(message.createdAt)}
+                </time>
+                {index === lastMine && <Receipt message={message} />}
+              </span>
             </div>
           </Fragment>
         );
       })}
+      {typingName && <TypingBubble name={typingName} />}
     </div>
   );
 }
 
-function Composer({onSend}) {
+function Composer({onSend, onTyping}) {
   const [draft, setDraft] = useState('');
   const [sending, setSending] = useState(false);
   const [error, setError] = useState(null);
@@ -117,6 +159,7 @@ function Composer({onSend}) {
     try {
       await onSend(body);
       setDraft('');
+      onTyping(false);
     } catch (caught) {
       setError(caught.message);
     } finally {
@@ -150,7 +193,11 @@ function Composer({onSend}) {
           ref={input}
           rows={1}
           value={draft}
-          onChange={(event) => setDraft(event.target.value)}
+          onChange={(event) => {
+            setDraft(event.target.value);
+            onTyping(event.target.value.trim().length > 0);
+          }}
+          onBlur={() => onTyping(false)}
           onKeyDown={onKeyDown}
           placeholder='Write a message'
           maxLength={MAX_BODY}
@@ -172,13 +219,50 @@ export default function Thread({conversationId}) {
   const [hasMore, setHasMore] = useState(false);
   const [loadingOlder, setLoadingOlder] = useState(false);
   const [error, setError] = useState(null);
+  const [otherTyping, setOtherTyping] = useState(false);
   const scrollRef = useRef(null);
   const keepOffset = useRef(null);
+  const pendingRead = useRef(false);
+  const typingSentAt = useRef(0);
+  const typingTimer = useRef(null);
 
   const markRead = useCallback(() => {
+    if (document.visibilityState !== 'visible') {
+      pendingRead.current = true;
+      return;
+    }
+    pendingRead.current = false;
     markSeen(conversationId);
     authFetch(`/api/conversations/${conversationId}/read`, {method: 'POST'}).catch(() => {});
   }, [conversationId, markSeen]);
+
+  useEffect(() => {
+    const onVisible = () => {
+      if (document.visibilityState === 'visible' && pendingRead.current) markRead();
+    };
+    document.addEventListener('visibilitychange', onVisible);
+    return () => document.removeEventListener('visibilitychange', onVisible);
+  }, [markRead]);
+
+  const sendTyping = useCallback(
+    (active) => {
+      const now = Date.now();
+      if (active) {
+        if (now - typingSentAt.current < TYPING_SEND_MS) return;
+        typingSentAt.current = now;
+      } else {
+        if (typingSentAt.current === 0) return;
+        typingSentAt.current = 0;
+      }
+      getSocket().emit('chat:typing', {conversationId, typing: active});
+    },
+    [conversationId]
+  );
+
+  const stopOtherTyping = useCallback(() => {
+    clearTimeout(typingTimer.current);
+    setOtherTyping(false);
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -207,20 +291,44 @@ export default function Thread({conversationId}) {
     const onMessage = ({message}) => {
       if (message.conversationId !== conversationId) return;
       setMessages((list) => addMessages(list, [message]));
-      if (message.senderId !== meId) markRead();
+      if (message.senderId !== meId) {
+        stopOtherTyping();
+        markRead();
+      }
+    };
+    const onTyping = ({conversationId: id, userId, typing}) => {
+      if (id !== conversationId || userId === meId) return;
+      clearTimeout(typingTimer.current);
+      if (!typing) return setOtherTyping(false);
+      setOtherTyping(true);
+      typingTimer.current = setTimeout(() => setOtherTyping(false), TYPING_SHOW_MS);
+    };
+    const onRead = ({conversationId: id, readerId, readAt}) => {
+      if (id !== conversationId || readerId === meId) return;
+      setMessages((list) =>
+        list.map((message) =>
+          message.senderId === meId && !message.readAt && message.createdAt <= readAt ? {...message, readAt} : message
+        )
+      );
     };
 
     socket.on('connect', join);
     socket.on('message:new', onMessage);
+    socket.on('chat:typing', onTyping);
+    socket.on('chat:read', onRead);
     if (socket.connected) join();
     else socket.connect();
 
     return () => {
       socket.off('connect', join);
       socket.off('message:new', onMessage);
+      socket.off('chat:typing', onTyping);
+      socket.off('chat:read', onRead);
+      sendTyping(false);
+      stopOtherTyping();
       socket.emit('chat:leave', {conversationId});
     };
-  }, [conversation, conversationId, meId, markRead]);
+  }, [conversation, conversationId, meId, markRead, sendTyping, stopOtherTyping]);
 
   useLayoutEffect(() => {
     const box = scrollRef.current;
@@ -232,6 +340,12 @@ export default function Thread({conversationId}) {
     }
     box.scrollTop = box.scrollHeight;
   }, [messages]);
+
+  useLayoutEffect(() => {
+    const box = scrollRef.current;
+    if (!box || !otherTyping) return;
+    if (box.scrollHeight - box.scrollTop - box.clientHeight < NEAR_BOTTOM_PX) box.scrollTop = box.scrollHeight;
+  }, [otherTyping]);
 
   const loadOlder = async () => {
     if (!messages[0]) return;
@@ -283,8 +397,9 @@ export default function Thread({conversationId}) {
         loadingOlder={loadingOlder}
         onLoadOlder={loadOlder}
         scrollRef={scrollRef}
+        typingName={otherTyping ? typingLabel(conversation) : null}
       />
-      <Composer onSend={send} />
+      <Composer onSend={send} onTyping={sendTyping} />
     </div>
   );
 }

@@ -239,8 +239,13 @@ Sockets use Firebase authentication. The client sends `{token}` (a Firebase ID t
 | chat:join | Client -> Server | {conversationId}, ack -> {ok} or {error} | Existing (KAN-44) |
 | chat:leave | Client -> Server | {conversationId} | Existing (KAN-44) |
 | chat:send | Client -> Server | {conversationId, body}, ack -> {message} or {error, status} | Existing (KAN-44) |
+| chat:typing | Client -> Server | {conversationId, typing} | Existing (KAN-46) |
+| chat:typing | Server -> Chat room | {conversationId, userId, typing} | Existing (KAN-46) |
+| chat:read | Server -> Chat room and both users | {conversationId, readerId, readAt} | Existing (KAN-46) |
 
 Chat rooms are named `chat:<conversationId>`; only the buyer and seller can join. `chat:send` needs a verified email and allows 10 messages per 10 seconds per user. The server saves the message, updates the conversation's `lastMessage`, emits `message:new` with `{message}` to the chat room and to both users' rooms (each socket gets it once), then sends the recipient a `new_message` notification.
+
+`chat:typing` is only relayed for a chat room the socket has joined, at most once a second per socket while `typing` is true; the sender's own socket doesn't get it back. Clients send `typing: true` every 2 seconds while the draft has text and `typing: false` when it is cleared, sent or blurred, and hide the indicator after 5 seconds without a new event. `POST /api/conversations/:id/read` emits `chat:read` when it marks at least one message read, so the sender can show a read receipt and the reader's other tabs clear the inbox unread count.
 
 Auction rooms are named `auction:<listingId>`. Being outbid has no event of its own: the bidder gets a `notification:new` of type `outbid`, and the auction room's `auction:bid` carries the live price.
 
