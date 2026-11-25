@@ -298,6 +298,7 @@ button {
 }
 
 .header-search {
+  position: relative;
   display: flex;
   width: 100%;
   max-width: 560px;
@@ -337,6 +338,36 @@ button {
 
 .header-search button:hover {
   background: var(--accent-hover);
+}
+
+.search-suggestions {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: calc(100% + var(--space-1));
+  z-index: var(--z-menu);
+  margin: 0;
+  padding: var(--space-2);
+  list-style: none;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-float);
+}
+
+.search-suggestions li {
+  padding: var(--space-2) var(--space-3);
+  overflow: hidden;
+  font-size: var(--fs-2);
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  cursor: pointer;
+  border-radius: var(--radius-sm);
+}
+
+.search-suggestions li:hover,
+.search-suggestions li[aria-selected='true'] {
+  background: var(--surface-sunk);
 }
 
 .site-nav {

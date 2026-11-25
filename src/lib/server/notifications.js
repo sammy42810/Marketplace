@@ -1,6 +1,7 @@
 // The notification format agreed in CONTRACTS.md section 4. Every feature that notifies a user
 // goes through createNotification, so the stored document and the socket payload always match.
 import {ObjectId} from 'mongodb';
+import {HttpError} from './auth.js';
 import {getDb} from './mongo.js';
 import {emitToUser} from './realtime.js';
 
@@ -17,6 +18,8 @@ export const NOTIFICATION_TYPES = [
 ];
 
 export const MAX_NOTIFICATION_MESSAGE = 280;
+const PAGE_SIZE = 30;
+const OBJECT_ID = /^[0-9a-f]{24}$/i;
 
 async function notificationsCollection() {
   const notifications = (await getDb()).collection('notifications');
@@ -89,4 +92,49 @@ export async function createNotification({userId, type, listingId = null, actorI
   const notification = publicNotification({...doc, _id: insertedId});
   emitToUser(doc.userId, 'notification:new', {notification});
   return notification;
+}
+
+// GET /api/notifications. Pass the last notification's _id as `before` to load the next page.
+export async function listNotifications(userId, before = null) {
+  const notifications = await notificationsCollection();
+  const filter = {userId};
+  if (before !== null) {
+    const last = OBJECT_ID.test(before) && (await notifications.findOne({_id: new ObjectId(before), userId}));
+    if (!last) throw new HttpError(400, 'before must be one of your notification IDs.');
+    filter.$or = [{createdAt: {$lt: last.createdAt}}, {createdAt: last.createdAt, _id: {$lt: last._id}}];
+  }
+  const [page, unread] = await Promise.all([
+    notifications.find(filter).sort({createdAt: -1, _id: -1}).limit(PAGE_SIZE + 1).toArray(),
+    notifications.countDocuments({userId, read: false})
+  ]);
+  return {
+    notifications: page.slice(0, PAGE_SIZE).map(publicNotification),
+    hasMore: page.length > PAGE_SIZE,
+    unread
+  };
+}
+
+// PATCH /api/notifications/:id. Someone else's notification is a 404, the same as a missing one.
+export async function markNotificationRead(id, body, userId) {
+  if (typeof id !== 'string' || !OBJECT_ID.test(id)) throw new HttpError(404, 'Notification not found.');
+  const keys = body && typeof body === 'object' ? Object.keys(body) : [];
+  if (keys.length !== 1 || body.read !== true) throw new HttpError(400, 'Send {"read": true}. Nothing else can be changed.');
+
+  const notifications = await notificationsCollection();
+  const doc = await notifications.findOneAndUpdate(
+    {_id: new ObjectId(id), userId},
+    {$set: {read: true}},
+    {returnDocument: 'after'}
+  );
+  if (!doc) throw new HttpError(404, 'Notification not found.');
+  return publicNotification(doc);
+}
+
+// POST /api/notifications/read-all
+export async function markAllNotificationsRead(userId) {
+  const {modifiedCount} = await (await notificationsCollection()).updateMany(
+    {userId, read: false},
+    {$set: {read: true}}
+  );
+  return {updated: modifiedCount};
 }
