@@ -88,6 +88,15 @@ export default function NotificationCenter() {
         </div>
       )}
 
+      {status === 'unverified' && (
+        <div className={styles.empty}>
+          <p>Verify your email address to get notifications. Open the link we emailed you, then check again.</p>
+          <Link href='/status' className='btn btn-quiet'>
+            Check verification
+          </Link>
+        </div>
+      )}
+
       {status === 'ready' && visible.length === 0 && (
         <div className={styles.empty}>
           <p>{filter === 'unread' ? 'No unread notifications.' : 'No notifications yet. Offers, bids, auction results and messages will show up here.'}</p>

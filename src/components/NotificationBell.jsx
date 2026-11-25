@@ -90,6 +90,14 @@ export default function NotificationBell() {
             </button>
           </div>
         )}
+        {status === 'unverified' && (
+          <div className={styles.note}>
+            <p>Verify your email to get notifications.</p>
+            <Link href='/status' className={styles.textButton} onClick={() => setOpen(false)}>
+              Check verification
+            </Link>
+          </div>
+        )}
         {status === 'ready' && items.length === 0 && (
           <p className={styles.note}>Nothing yet. Offers, bids and messages will show up here.</p>
         )}

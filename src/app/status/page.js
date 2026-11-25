@@ -59,6 +59,7 @@ function StatusChecks() {
     const onError = (error) => setSocketState({state: false, message: error.message});
     socket.on('connect', onConnect);
     socket.on('connect_error', onError);
+    if (socket.connected) onConnect();
     socket.connect();
     return () => {
       socket.off('connect', onConnect);
