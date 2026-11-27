@@ -3,6 +3,7 @@ import next from "next";
 import nextEnv from "@next/env";
 import { attachSockets } from "./src/lib/server/sockets.js";
 import { ensureListingsIndex } from "./src/lib/search/client.js";
+import { serveUploads } from "./src/lib/server/serveUploads.js";
 
 const dev = !process.argv.includes("--production");
 
@@ -18,7 +19,13 @@ await app.prepare();
 await ensureListingsIndex();
 
 // Socket.io can't live in Next.js API routes, so both share this server.
-const httpServer = createServer((req, res) => handle(req, res));
+const httpServer = createServer((req, res) => {
+  if (req.url.startsWith("/uploads/")) {
+    return serveUploads(req, res);
+  }
+
+  return handle(req, res);
+});
 globalThis.marketplaceIo = attachSockets(httpServer);
 
 httpServer.listen(port, () => {

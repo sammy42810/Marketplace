@@ -18,14 +18,14 @@ export async function processListingImage(filename) {
   }
 
   const id = randomUUID();
-  const outputDir = path.join(process.cwd(), "storage", "images");
+  const outputDir = path.join(process.cwd(), "storage", "uploads");
   const files = {};
 
   await mkdir(outputDir, { recursive: true });
 
   try {
     for (const [type, size] of Object.entries(SIZES)) {
-      const output = `images/${id}-${type}.webp`;
+      const output = `uploads/${id}-${type}.webp`;
       files[type] = output;
 
       await runMagick([
