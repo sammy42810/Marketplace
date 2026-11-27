@@ -132,6 +132,21 @@ DELETE marks the listing as removed, and removed listings return 404.
 
 **Errors** are `{error: message}`: 400 invalid input, 401 not signed in, 403 not the seller or email unverified, 404 not found or malformed ID, 409 locked.
 
+### Listing Photos
+
+| Method | Route | Auth | Request / Response |
+| --- | --- | --- | --- |
+| POST | /api/listings/photos | Signed in, verified | multipart/form-data (`photos`) -> {photos: [{thumb, card, full}]} |
+| GET | /uploads/:filename | No | -> WebP image |
+
+Uploads accept 1 to 8 photos, with a maximum of 10 MB per photo. JPEG, PNG, GIF and WebP images are validated using signature bytes.
+
+Images are processed using ImageMagick, saved with random filenames in `storage/uploads/` and served through `server.js`. The returned `photos` array can be used when creating or updating a listing.
+
+Uploads are limited to 5 attempts per minute and one concurrent upload per user.
+
+**Errors** are `{error: message}`: 400 invalid input, 401 not signed in, 403 email unverified, 413 upload too large, 422 processing failed, 429 rate limited.
+
 ### Offers and Bids (Planned)
 
 | Method | Route | Auth | Request / Response |
