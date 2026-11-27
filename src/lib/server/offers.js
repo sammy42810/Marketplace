@@ -2,6 +2,7 @@ import {ObjectId} from 'mongodb';
 import {HttpError} from './auth.js';
 import {getDb, getMongoClient} from './mongo.js';
 import {createNotification} from './notifications.js';
+import {syncListing} from '../search/sync.js';
 
 const OBJECT_ID = /^[0-9a-f]{24}$/i;
 const SELLER_STATUSES = ['accepted', 'rejected'];
@@ -92,15 +93,16 @@ async function acceptOffer(offer, listing) {
   const session = (await getMongoClient()).startSession();
   let declined = [];
   let accepted;
+  let sold;
 
   try {
     await session.withTransaction(
       async () => {
         const now = new Date();
-        const sold = await db.collection('listings').findOneAndUpdate(
+        sold = await db.collection('listings').findOneAndUpdate(
           {_id: listing._id, saleType: 'offer', status: 'active'},
           {$set: {status: 'sold', buyerId: offer.buyerId, soldPrice: offer.amount, soldAt: now, updatedAt: now}},
-          {session}
+          {returnDocument: 'after', session}
         );
         if (!sold) throw new HttpError(409, 'This listing is no longer available.');
 
@@ -122,6 +124,7 @@ async function acceptOffer(offer, listing) {
   } finally {
     await session.endSession();
   }
+  await syncListing(sold);
 
   await notify({
     userId: offer.buyerId,
