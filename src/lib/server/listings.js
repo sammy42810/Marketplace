@@ -1,6 +1,7 @@
 import {ObjectId} from 'mongodb';
 import {HttpError} from './auth.js';
 import {getDb} from './mongo.js';
+import {syncListing} from '../search/sync.js';
 
 const CATEGORIES = ['electronics', 'furniture', 'textbooks', 'clothing', 'tickets', 'sports', 'home', 'other'];
 const CONDITIONS = ['new', 'like-new', 'good', 'fair', 'poor'];
@@ -211,7 +212,9 @@ export async function createListing(body, user) {
 
   const listings = await listingsCollection();
   const {insertedId} = await listings.insertOne(listing);
-  return serialize({...listing, _id: insertedId});
+  const created = {...listing, _id: insertedId};
+  await syncListing(created);
+  return serialize(created);
 }
 
 export async function getListing(id) {
@@ -304,6 +307,7 @@ export async function updateListing(id, body, user) {
     {returnDocument: 'after'}
   );
   if (!updated) throw new HttpError(409, LOCKED);
+  await syncListing(updated);
   return serialize(updated);
 }
 
@@ -314,6 +318,7 @@ export async function removeListing(id, user) {
     $set: {status: 'removed', updatedAt: new Date()}
   });
   if (matchedCount === 0) throw new HttpError(409, LOCKED);
+  await syncListing({...listing, status: 'removed'});
 }
 
 export function cardListing(listing) {
