@@ -61,20 +61,22 @@ function zipCode(value) {
   return value;
 }
 
-function photoPath(value) {
-  // Our upload endpoint serves same-site paths; anything else could point at another site.
-  if (typeof value !== 'string' || !value.startsWith('/') || value.startsWith('//') || value.length > 500) {
-    throw invalid('Each photo must be a path on this site.');
-  }
+// Exactly what POST /api/listings/photos returns and server.js serves. Any other same-site
+// path would let a listing's <img> fire a GET at one of our own routes for every viewer.
+const UPLOAD_PATH = /^\/uploads\/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}-(thumb|card|full)\.webp$/;
+
+function photoPath(value, size) {
+  const match = typeof value === 'string' ? UPLOAD_PATH.exec(value) : null;
+  if (!match || match[1] !== size) throw invalid('Each photo must come from the photo upload endpoint.');
   return value;
 }
 
 function photos(value) {
   if (!Array.isArray(value) || value.length > MAX_PHOTOS) throw invalid(`Photos must be a list of at most ${MAX_PHOTOS}.`);
   return value.map((photo) => ({
-    thumb: photoPath(photo?.thumb),
-    card: photoPath(photo?.card),
-    full: photoPath(photo?.full)
+    thumb: photoPath(photo?.thumb, 'thumb'),
+    card: photoPath(photo?.card, 'card'),
+    full: photoPath(photo?.full, 'full')
   }));
 }
 
@@ -177,7 +179,7 @@ async function findVisibleListing(listings, id) {
 }
 
 function objectIdOr404(id) {
-  if (!OBJECT_ID.test(id)) throw new HttpError(404, 'Listing not found.');
+  if (typeof id !== 'string' || !OBJECT_ID.test(id)) throw new HttpError(404, 'Listing not found.');
   return new ObjectId(id);
 }
 
@@ -225,7 +227,7 @@ export async function getListing(id) {
 }
 
 export async function getSellerRating(sellerId) {
-  if (!OBJECT_ID.test(sellerId ?? '')) return {average: null, count: 0};
+  if (typeof sellerId !== 'string' || !OBJECT_ID.test(sellerId)) return {average: null, count: 0};
   const db = await getDb();
   const [summary] = await db
     .collection('reviews')

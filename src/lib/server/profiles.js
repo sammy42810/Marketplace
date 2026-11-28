@@ -17,7 +17,7 @@ function publicProfile(user) {
 }
 
 export async function getProfile(id) {
-  if (!OBJECT_ID.test(id)) throw new HttpError(404, 'User not found.');
+  if (typeof id !== 'string' || !OBJECT_ID.test(id)) throw new HttpError(404, 'User not found.');
   const db = await getDb();
   const user = await db
     .collection('users')

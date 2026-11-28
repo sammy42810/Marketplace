@@ -46,63 +46,68 @@ export function attachSockets(httpServer) {
     // The client turns this into an offset from its own clock, so auction countdowns use server time.
     socket.emit("clock", { serverTime: Date.now() });
 
+    // A listener that throws is an uncaught exception, which stops the whole server. So every
+    // event goes through here: the payload is always a plain object, and errors become replies.
+    const on = (event, handler) =>
+      socket.on(event, async (...args) => {
+        const ack = typeof args.at(-1) === "function" ? args.pop() : undefined;
+        await reply(ack, () => handler(fields(args[0])));
+      });
+
     socket.on("ping", (ack) => {
       if (typeof ack === "function") ack({ serverTime: Date.now() });
     });
 
     // Let users join or leave auction rooms to receive live bid updates.
-    socket.on("auction:join", ({ listingId } = {}, ack) => {
-      if (typeof listingId !== "string" || !/^[0-9a-f]{24}$/i.test(listingId)) {
-        if (typeof ack === "function") ack({ error: "Invalid listing ID." });
-        return;
-      }
-
-      socket.join(`auction:${listingId.toLowerCase()}`);
-
-      if (typeof ack === "function") ack({ ok: true });
+    on("auction:join", ({ listingId }) => {
+      socket.join(`auction:${listingIdOr400(listingId)}`);
+      return { ok: true };
     });
 
-    socket.on("auction:leave", ({ listingId } = {}, ack) => {
-      if (typeof listingId !== "string" || !/^[0-9a-f]{24}$/i.test(listingId)) {
-        if (typeof ack === "function") ack({ error: "Invalid listing ID." });
-        return;
-      }
-
-      socket.leave(`auction:${listingId.toLowerCase()}`);
-
-      if (typeof ack === "function") ack({ ok: true });
+    on("auction:leave", ({ listingId }) => {
+      socket.leave(`auction:${listingIdOr400(listingId)}`);
+      return { ok: true };
     });
 
-    socket.on("chat:join", async ({ conversationId } = {}, ack) => {
-      await reply(ack, async () => {
-        const conversation = await findConversation(conversationId, new ObjectId(socket.data.userId));
-        socket.join(chatRoom(conversation._id.toString()));
-        return { ok: true };
-      });
+    on("chat:join", async ({ conversationId }) => {
+      const conversation = await findConversation(conversationId, new ObjectId(socket.data.userId));
+      socket.join(chatRoom(conversation._id.toString()));
+      return { ok: true };
     });
 
-    socket.on("chat:leave", ({ conversationId } = {}, ack) => {
-      if (typeof conversationId === "string" && /^[0-9a-f]{24}$/i.test(conversationId)) {
+    on("chat:leave", ({ conversationId }) => {
+      if (typeof conversationId === "string" && OBJECT_ID.test(conversationId)) {
         socket.leave(chatRoom(conversationId.toLowerCase()));
       }
-      if (typeof ack === "function") ack({ ok: true });
+      return { ok: true };
     });
 
-    socket.on("chat:send", async ({ conversationId, body } = {}, ack) => {
-      await reply(ack, async () => {
-        if (!socket.data.emailVerified) {
-          throw new HttpError(403, "Verify your email address first. Check your inbox for the link.");
-        }
-        const message = await sendMessage(conversationId, body, new ObjectId(socket.data.userId));
-        return { message };
-      });
+    on("chat:send", async ({ conversationId, body }) => {
+      if (!socket.data.emailVerified) {
+        throw new HttpError(403, "Verify your email address first. Check your inbox for the link.");
+      }
+      const message = await sendMessage(conversationId, body, new ObjectId(socket.data.userId));
+      return { message };
     });
 
-    socket.on("chat:typing", (payload) => relayTyping(socket, payload));
+    on("chat:typing", (payload) => relayTyping(socket, payload));
   });
 
   setIo(io);
   return io;
+}
+
+const OBJECT_ID = /^[0-9a-f]{24}$/i;
+
+function fields(payload) {
+  return payload !== null && typeof payload === "object" && !Array.isArray(payload) ? payload : {};
+}
+
+function listingIdOr400(listingId) {
+  if (typeof listingId !== "string" || !OBJECT_ID.test(listingId)) {
+    throw new HttpError(400, "Invalid listing ID.");
+  }
+  return listingId.toLowerCase();
 }
 
 async function reply(ack, handler) {

@@ -3,38 +3,13 @@ import { mkdir, rm, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { HttpError } from "./auth.js";
 import { processListingImage } from "./images.js";
+import { rateLimit } from "./rateLimit.js";
 
 const MAX_PHOTOS = 8;
 const MAX_FILE_BYTES = 10 * 1024 * 1024;
 const MAX_BODY_BYTES = MAX_PHOTOS * MAX_FILE_BYTES + 1024 * 1024;
-const LIMIT = 5;
-const WINDOW_MS = 60_000;
-
-const attempts = (globalThis.marketplacePhotoAttempts ??= new Map());
+// Each upload runs ImageMagick three times per photo, so allow one at a time per user.
 const active = (globalThis.marketplacePhotoUploads ??= new Set());
-
-function checkRateLimit(userId) {
-  const now = Date.now();
-
-  for (const [id, times] of attempts) {
-    if (now - times[times.length - 1] >= WINDOW_MS) {
-      attempts.delete(id);
-    }
-  }
-
-  const times = (attempts.get(userId) ?? []).filter(
-    (time) => now - time < WINDOW_MS,
-  );
-
-  if (times.length >= LIMIT || active.has(userId)) {
-    throw new HttpError(
-      429,
-      "Too many photo uploads. Please try again shortly.",
-    );
-  }
-
-  attempts.set(userId, [...times, now]);
-}
 
 export function imageExtension(bytes) {
   if (
@@ -152,7 +127,9 @@ async function readPhotos(request) {
 export async function uploadListingPhotos(request, user) {
   const userId = user._id.toString();
 
-  checkRateLimit(userId);
+  const tooMany = "Too many photo uploads. Please try again shortly.";
+  if (active.has(userId)) throw new HttpError(429, tooMany);
+  rateLimit("photo-upload", userId, { limit: 5, windowMs: 60_000, message: tooMany });
   active.add(userId);
 
   const storage = path.join(process.cwd(), "storage");
