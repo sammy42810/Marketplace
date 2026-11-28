@@ -99,7 +99,7 @@ export async function listNotifications(userId, before = null) {
   const notifications = await notificationsCollection();
   const filter = {userId};
   if (before !== null) {
-    const last = OBJECT_ID.test(before) && (await notifications.findOne({_id: new ObjectId(before), userId}));
+    const last = typeof before === 'string' && OBJECT_ID.test(before) && (await notifications.findOne({_id: new ObjectId(before), userId}));
     if (!last) throw new HttpError(400, 'before must be one of your notification IDs.');
     filter.$or = [{createdAt: {$lt: last.createdAt}}, {createdAt: last.createdAt, _id: {$lt: last._id}}];
   }

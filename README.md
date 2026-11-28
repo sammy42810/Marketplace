@@ -132,7 +132,18 @@ Every member does this once, on a fresh clone, before building features on top o
   (`userRoom(userId)` from `src/lib/server/realtime.js`).
   For countdowns, use `serverNow()` from `@/lib/socketClient` instead of `Date.now()`. It
   corrects for the browser's clock being off from the server's.
-- **MongoDB:** `getDb()` from `@/lib/server/mongo`.
+- **MongoDB:** `getDb()` from `@/lib/server/mongo`. Check the type of every value from the request
+  before it goes into a query (`typeof id === 'string'` and the 24-hex-digit pattern before
+  `new ObjectId(id)`, allow-lists for enums). An object like `{"$gt": ""}` in place of a string
+  would otherwise run as a query operator.
+- **Rate limits:** `rateLimit(name, user._id, {limit, windowMs, message})` from
+  `@/lib/server/rateLimit` throws a 429 once a user goes over. Call it first in any route that
+  notifies someone else or does heavy work.
+- **Content-Security-Policy:** `server.js` sends a strict CSP (`src/lib/server/securityHeaders.js`).
+  Inline `<script>`, `onclick="..."` attributes and scripts from other sites are blocked, and so
+  is `dangerouslySetInnerHTML` with scripts in it. If you add an external service (an image host,
+  an API), add its origin to the matching directive there. A blocked request shows up as a CSP
+  error in the browser console.
 - **ImageMagick:** `runMagick(args)` from `@/lib/server/imagemagick`, with paths relative to
   `storage/`. Only GIF, JPEG, PNG and WebP are allowed (see `docker/imagemagick/policy.xml`).
 

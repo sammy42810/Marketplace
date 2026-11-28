@@ -2,16 +2,14 @@ import {ObjectId} from 'mongodb';
 import {HttpError} from './auth.js';
 import {getDb} from './mongo.js';
 import {createNotification} from './notifications.js';
+import {rateLimit} from './rateLimit.js';
 import {userRoom} from './realtime.js';
 
 const OBJECT_ID = /^[0-9a-f]{24}$/i;
 const MAX_BODY = 2000;
 const PAGE_SIZE = 50;
 const INBOX_SIZE = 100;
-const SEND_LIMIT = 10;
-const SEND_WINDOW_MS = 10_000;
 const TYPING_THROTTLE_MS = 1000;
-const sendTimes = (globalThis.marketplaceChatSends ??= new Map());
 
 export function chatRoom(conversationId) {
   return `chat:${conversationId}`;
@@ -42,15 +40,6 @@ async function chatCollections() {
   }
   await globalThis.marketplaceChatIndexes;
   return {db, conversations, messages};
-}
-
-function checkSendRate(userId) {
-  const key = userId.toString();
-  const now = Date.now();
-  const recent = (sendTimes.get(key) ?? []).filter((time) => now - time < SEND_WINDOW_MS);
-  if (recent.length >= SEND_LIMIT) throw new HttpError(429, 'You are sending messages too fast. Wait a few seconds.');
-  recent.push(now);
-  sendTimes.set(key, recent);
 }
 
 function messageBody(value) {
@@ -223,7 +212,7 @@ export async function listMessages(id, userId, before = null) {
   const {messages} = await chatCollections();
   const filter = {conversationId: conversation._id.toString()};
   if (before !== null) {
-    if (!OBJECT_ID.test(before)) throw new HttpError(400, 'before must be a message ID.');
+    if (typeof before !== 'string' || !OBJECT_ID.test(before)) throw new HttpError(400, 'before must be a message ID.');
     filter._id = {$lt: new ObjectId(before)};
   }
   const page = await messages
@@ -238,7 +227,11 @@ export async function listMessages(id, userId, before = null) {
 }
 
 export async function sendMessage(conversationIdValue, bodyValue, userId) {
-  checkSendRate(userId);
+  rateLimit('message', userId, {
+    limit: 10,
+    windowMs: 10_000,
+    message: 'You are sending messages too fast. Wait a few seconds.'
+  });
   const body = messageBody(bodyValue);
   const conversation = await findConversation(conversationIdValue, userId);
   const {db, conversations, messages} = await chatCollections();

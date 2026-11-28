@@ -2,6 +2,7 @@ import { ObjectId } from "mongodb";
 import { HttpError, withUser } from "@/lib/server/auth";
 import { getDb } from "@/lib/server/mongo";
 import { createNotification } from "@/lib/server/notifications";
+import { rateLimit } from "@/lib/server/rateLimit";
 
 export const runtime = "nodejs";
 
@@ -11,6 +12,13 @@ export const POST = withUser(async (request, context, user) => {
   if (typeof id !== "string" || !/^[0-9a-f]{24}$/i.test(id)) {
     throw new HttpError(400, "Invalid listing ID.");
   }
+
+  // Every offer notifies the seller, so cap how fast one buyer can send them.
+  rateLimit("offer", user._id, {
+    limit: 10,
+    windowMs: 60_000,
+    message: "Too many offers. Please wait a minute and try again.",
+  });
 
   const body = await request.json().catch(() => null);
   const amount = body?.amount;

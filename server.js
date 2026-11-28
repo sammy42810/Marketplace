@@ -4,6 +4,7 @@ import nextEnv from "@next/env";
 import { attachSockets } from "./src/lib/server/sockets.js";
 import { ensureListingsIndex, waitForElasticsearch } from "./src/lib/search/client.js";
 import { serveUploads } from "./src/lib/server/serveUploads.js";
+import { applySecurityHeaders } from "./src/lib/server/securityHeaders.js";
 
 const dev = !process.argv.includes("--production");
 
@@ -27,6 +28,8 @@ try {
 
 // Socket.io can't live in Next.js API routes, so both share this server.
 const httpServer = createServer((req, res) => {
+  applySecurityHeaders(req, res, { dev });
+
   if (req.url.startsWith("/uploads/")) {
     return serveUploads(req, res);
   }

@@ -126,11 +126,11 @@ DELETE marks the listing as removed, and removed listings return 404.
 
 **Allowed values:** `category` is electronics, furniture, textbooks, clothing, tickets, sports, home or other. `condition` is new, like-new, good, fair or poor.
 
-**Required on create:** title, description, category, condition, price, saleType, zip. Auctions also need `endsAt` and `minIncrement`; `startsAt` defaults to now, and an auction runs from 1 minute to 30 days. `photos` must be same-site paths. `location` is optional.
+**Required on create:** title, description, category, condition, price, saleType, zip. Auctions also need `endsAt` and `minIncrement`; `startsAt` defaults to now, and an auction runs from 1 minute to 30 days. `photos` must be `{thumb, card, full}` objects exactly as `POST /api/listings/photos` returned them (`/uploads/<uuid>-<size>.webp`). `location` is optional. Each user can create 10 listings per 10 minutes.
 
 **PATCH** can change title, description, category, condition, price, photos, zip and location. Any other field is a 400. Listings that have sold or have bids can't be edited or removed (409).
 
-**Errors** are `{error: message}`: 400 invalid input, 401 not signed in, 403 not the seller or email unverified, 404 not found or malformed ID, 409 locked.
+**Errors** are `{error: message}`: 400 invalid input, 401 not signed in, 403 not the seller or email unverified, 404 not found or malformed ID, 409 locked, 429 rate limited.
 
 ### Listing Photos
 
@@ -157,6 +157,8 @@ Uploads are limited to 5 attempts per minute and one concurrent upload per user.
 | POST | /api/listings/:id/bids | Yes | {amount} -> {bid, currentBid} |
 | GET | /api/listings/:id/bids | No | -> {bids} |
 | GET | /api/offers?listingId=:id | Yes | -> {offers} |
+
+Each user can make 10 offers per minute and 5 bids per 10 seconds; more get a 429.
 
 `GET /api/offers?listingId=` and `PATCH /api/offers/:id` are built (KAN-49). The GET gives the seller every offer on the listing, newest first, each with `buyer: {_id, displayName, photoUrl}`; anyone else gets only their own offers on it. The PATCH only changes a pending offer: the seller sends `accepted` or `rejected`, the buyer sends `cancelled`. Accepting runs in one transaction: the listing becomes `sold` with `buyerId`, `soldPrice` and `soldAt`, and the other pending offers become `rejected`. It sends `offer_accepted` or `offer_declined` to the buyer, and `listing_sold` to the buyers whose offers were closed by the sale.
 
@@ -257,6 +259,8 @@ Sockets use Firebase authentication. The client sends `{token}` (a Firebase ID t
 | chat:typing | Client -> Server | {conversationId, typing} | Existing (KAN-46) |
 | chat:typing | Server -> Chat room | {conversationId, userId, typing} | Existing (KAN-46) |
 | chat:read | Server -> Chat room and both users | {conversationId, readerId, readAt} | Existing (KAN-46) |
+
+Client -> Server events with an acknowledgement reply `{error, status}` on bad input (for example `auction:join` with a malformed `listingId` gets status 400). A payload that isn't an object is treated as `{}`.
 
 Chat rooms are named `chat:<conversationId>`; only the buyer and seller can join. `chat:send` needs a verified email and allows 10 messages per 10 seconds per user. The server saves the message, updates the conversation's `lastMessage`, emits `message:new` with `{message}` to the chat room and to both users' rooms (each socket gets it once), then sends the recipient a `new_message` notification.
 

@@ -2,30 +2,9 @@ import { ObjectId } from "mongodb";
 import { HttpError, withErrors, withUser } from "@/lib/server/auth";
 import { getDb, getMongoClient } from "@/lib/server/mongo";
 import { createNotification } from "@/lib/server/notifications";
+import { rateLimit } from "@/lib/server/rateLimit";
 
 export const runtime = "nodejs";
-
-const LIMIT = 5;
-const WINDOW_MS = 10000;
-const bidAttempts = (globalThis.marketplaceBidAttempts ??= new Map());
-
-// limit each user to 5 bid attempts every 10s
-function checkRateLimit(userId) {
-  const now = Date.now();
-  const attempts = (bidAttempts.get(userId) ?? []).filter(
-    (time) => now - time < WINDOW_MS,
-  );
-
-  if (attempts.length >= LIMIT) {
-    throw new HttpError(
-      429,
-      "Too many bids. Please try again in a few seconds.",
-    );
-  }
-
-  attempts.push(now);
-  bidAttempts.set(userId, attempts);
-}
 
 function minimumBid(listing) {
   const current = listing.currentBid ?? listing.price;
@@ -79,7 +58,11 @@ export const POST = withUser(async (request, context, user) => {
     throw new HttpError(400, "Invalid listing ID.");
   }
 
-  checkRateLimit(user._id.toString());
+  rateLimit("bid", user._id, {
+    limit: 5,
+    windowMs: 10_000,
+    message: "Too many bids. Please try again in a few seconds.",
+  });
 
   const body = await request.json().catch(() => null);
   const amount = body?.amount;
